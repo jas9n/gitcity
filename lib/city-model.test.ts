@@ -88,4 +88,18 @@ describe("city model", () => {
       ),
     ).toBe(true);
   });
+
+  it("packs neighboring buildings into dense city blocks", () => {
+    const [first, second] = buildCity([
+      repo({ id: 1, fullName: "dense/a", name: "a" }),
+      repo({ id: 2, fullName: "dense/b", name: "b" }),
+    ]);
+    const distance = Math.hypot(
+      first.position[0] - second.position[0],
+      first.position[2] - second.position[2],
+    );
+
+    expect(distance).toBeLessThan(4);
+    expect(distance).toBeGreaterThan(3.1);
+  });
 });

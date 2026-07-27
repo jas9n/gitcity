@@ -113,54 +113,44 @@ function createLayout(repositories: RepositorySignal[]) {
     const sizeDelta = (groups.get(b)?.length ?? 0) - (groups.get(a)?.length ?? 0);
     return sizeDelta || a.localeCompare(b);
   });
-  const largestDistrict = Math.max(
-    1,
-    ...languages.map((language) => groups.get(language)?.length ?? 0),
+  const orderedRepositories = languages.flatMap((language) =>
+    [...(groups.get(language) ?? [])].sort(
+      (a, b) =>
+        activityScore(b) - activityScore(a) || a.name.localeCompare(b.name),
+    ),
   );
-  const districtFootprint =
-    Math.ceil(Math.sqrt(largestDistrict)) * 4.7 + 11;
-  const columns = Math.ceil(Math.sqrt(languages.length));
-  const rows = Math.ceil(languages.length / columns);
-  const origins = new Map(
-    languages.map((language, index) => {
-      const column = index % columns;
-      const row = Math.floor(index / columns);
-      return [
-        language,
-        [
-          (column - (columns - 1) / 2) * districtFootprint,
-          (row - (rows - 1) / 2) * districtFootprint,
-        ] as const,
-      ];
-    }),
-  );
+  const gridWidth = Math.ceil(Math.sqrt(orderedRepositories.length));
+  const gridHeight = Math.ceil(orderedRepositories.length / gridWidth);
+  const buildingSpacing = 3.55;
+  const boulevardEvery = 6;
+  const boulevardWidth = 1.15;
+  const gridSpan = (cells: number) =>
+    Math.max(0, cells - 1) * buildingSpacing +
+    Math.floor(Math.max(0, cells - 1) / boulevardEvery) * boulevardWidth;
   const placements = new Map<
     RepositorySignal["id"],
     { position: [number, number, number]; rotation: number }
   >();
 
-  languages.forEach((language) => {
-    const repositoriesInDistrict = [...(groups.get(language) ?? [])].sort(
-      (a, b) => activityScore(b) - activityScore(a) || a.name.localeCompare(b.name),
-    );
-    const origin = origins.get(language) ?? [0, 0];
-    const gridWidth = Math.ceil(Math.sqrt(repositoriesInDistrict.length));
-
-    repositoriesInDistrict.forEach((repo, index) => {
-      const column = index % gridWidth;
-      const row = Math.floor(index / gridWidth);
-      const seed = hashString(repo.fullName);
-      const jitterX = ((seed & 255) / 255 - 0.5) * 0.8;
-      const jitterZ = (((seed >> 8) & 255) / 255 - 0.5) * 0.8;
-      const localSpacing = 4.7;
-      placements.set(repo.id, {
-        position: [
-          origin[0] + (column - (gridWidth - 1) / 2) * localSpacing + jitterX,
-          0,
-          origin[1] + (row - (Math.ceil(repositoriesInDistrict.length / gridWidth) - 1) / 2) * localSpacing + jitterZ,
-        ],
-        rotation: ((seed % 5) - 2) * 0.018,
-      });
+  orderedRepositories.forEach((repo, index) => {
+    const column = index % gridWidth;
+    const row = Math.floor(index / gridWidth);
+    const seed = hashString(repo.fullName);
+    const jitterX = ((seed & 255) / 255 - 0.5) * 0.3;
+    const jitterZ = (((seed >> 8) & 255) / 255 - 0.5) * 0.3;
+    placements.set(repo.id, {
+      position: [
+        column * buildingSpacing +
+          Math.floor(column / boulevardEvery) * boulevardWidth -
+          gridSpan(gridWidth) / 2 +
+          jitterX,
+        0,
+        row * buildingSpacing +
+          Math.floor(row / boulevardEvery) * boulevardWidth -
+          gridSpan(gridHeight) / 2 +
+          jitterZ,
+      ],
+      rotation: ((seed % 5) - 2) * 0.014,
     });
   });
 
