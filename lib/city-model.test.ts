@@ -169,7 +169,7 @@ describe("city model", () => {
         commits30d: 200,
       }),
     ]);
-    expect(activityCity[0].windowRows).toBeGreaterThanOrEqual(4);
+    expect(activityCity[0].windowRows).toBeGreaterThanOrEqual(3);
     expect(activityCity[0].illumination).toBe(0);
     expect(activityCity[1].illumination).toBeGreaterThan(
       activityCity[0].illumination,

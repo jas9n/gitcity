@@ -204,11 +204,12 @@ export function buildCity(
       4,
       Math.min(24, Math.round(height / 0.75)),
     );
+    const activityWindowRows = height < 3.2 ? 3 : levelCount;
     const starWindowRows = Math.max(
-      4,
-      Math.min(18, Math.round(4 + starsNormalized * 14)),
+      3,
+      Math.min(18, Math.round(3 + starsNormalized * 15)),
     );
-    const windowRows = Math.max(levelCount, starWindowRows);
+    const windowRows = Math.max(activityWindowRows, starWindowRows);
     const brightness = repo.archived ? 0 : contributorsNormalized;
     const illumination = repo.archived
       ? 0

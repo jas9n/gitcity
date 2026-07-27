@@ -44,7 +44,7 @@ large-city modes may cap rows for performance but should remain visibly dense.
 
 Render exactly three individual panes per row on every façade. Activity floors
 provide the baseline row count and stars can increase that capacity, with a
-minimum of four so inactive buildings still have visible windows. The vertical
+minimum of three so inactive buildings still have visible windows. The vertical
 gap between rows must equal the pane height.
 Contributor normalization sets the maximum occupied share, while rolling 30-day
 activity controls how many of those panes illuminate and whether they use low,

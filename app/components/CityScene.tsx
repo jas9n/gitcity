@@ -75,22 +75,22 @@ const WINDOW_STYLES: Record<
     opacity: 0.58,
   },
   low: {
-    color: "#806d46",
-    emissive: "#4d3b1d",
-    emissiveIntensity: 0.12,
-    opacity: 0.46,
+    color: "#8a7549",
+    emissive: "#694b18",
+    emissiveIntensity: 0.28,
+    opacity: 0.3,
   },
   medium: {
-    color: "#a48b55",
-    emissive: "#6a5225",
-    emissiveIntensity: 0.22,
-    opacity: 0.58,
+    color: "#a58b52",
+    emissive: "#84621f",
+    emissiveIntensity: 0.52,
+    opacity: 0.39,
   },
   high: {
-    color: "#c0a66b",
-    emissive: "#80652d",
-    emissiveIntensity: 0.34,
-    opacity: 0.72,
+    color: "#bea464",
+    emissive: "#a47c29",
+    emissiveIntensity: 0.82,
+    opacity: 0.5,
   },
 };
 
@@ -374,6 +374,7 @@ function WindowPaneBatch({
         transparent
         opacity={style.opacity}
         depthWrite={false}
+        blending={tone === "dark" ? undefined : AdditiveBlending}
         metalness={0.08}
         roughness={0.42}
       />

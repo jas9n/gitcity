@@ -801,13 +801,13 @@ a:focus-visible {
 .legend-windows {
   background: linear-gradient(
     to bottom,
-    rgba(192, 166, 107, 0.72) 0 33%,
-    rgba(164, 139, 85, 0.58) 33% 66%,
-    rgba(128, 109, 70, 0.46) 66% 100%
+    rgba(190, 164, 100, 0.5) 0 33%,
+    rgba(165, 139, 82, 0.39) 33% 66%,
+    rgba(138, 117, 73, 0.3) 66% 100%
   );
   box-shadow:
-    0 -4px 7px rgba(192, 166, 107, 0.24),
-    0 5px 7px rgba(128, 109, 70, 0.16);
+    0 -4px 10px rgba(190, 164, 100, 0.42),
+    0 5px 9px rgba(138, 117, 73, 0.28);
 }
 
 .legend-color {
