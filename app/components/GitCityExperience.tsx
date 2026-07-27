@@ -635,8 +635,15 @@ export function GitCityExperience() {
         <div>
           <span className="legend-line legend-light" />
           <p>
-            <strong>LIGHT</strong>
-            Stars + people
+            <strong>WINDOWS</strong>
+            Stars · people lit
+          </p>
+        </div>
+        <div>
+          <span className="legend-line legend-beacon" />
+          <p>
+            <strong>BEACON</strong>
+            Recent push
           </p>
         </div>
         <div>
@@ -644,6 +651,13 @@ export function GitCityExperience() {
           <p>
             <strong>COLOR</strong>
             Primary language
+          </p>
+        </div>
+        <div>
+          <span className="legend-line legend-footprint" />
+          <p>
+            <strong>FORM</strong>
+            Size · archived dark
           </p>
         </div>
       </section>
@@ -673,7 +687,8 @@ export function GitCityExperience() {
           </button>
           <div className="panel-kicker">
             <span style={{ background: selected.accent }} />
-            {selected.tier.replace("-", " ")} · {selected.language}
+            {selected.archived ? "archived" : selected.tier.replace("-", " ")} ·{" "}
+            {selected.language}
           </div>
           <h2>{selected.name}</h2>
           <p className="panel-description">{selected.description}</p>
@@ -709,8 +724,14 @@ export function GitCityExperience() {
               <strong>{selected.height.toFixed(1)} units</strong>
             </div>
             <div className="profile-row">
-              <span>Occupancy glow</span>
-              <strong>{Math.round(selected.brightness * 100)}%</strong>
+              <span>Windows</span>
+              <strong>
+                {selected.windowCount} · {Math.round(selected.brightness * 100)}% lit
+              </strong>
+            </div>
+            <div className="profile-row">
+              <span>Rooftop beacon</span>
+              <strong>{Math.round(selected.recentActivity * 100)}%</strong>
             </div>
             <div className="profile-row">
               <span>Last push</span>
@@ -728,8 +749,9 @@ export function GitCityExperience() {
             <ArrowUpRight size={15} />
           </a>
           <p className="formula-note">
-            Height uses logarithmic scaling across commits, pull requests, and
-            issue activity so every repository remains visible.
+            Height reflects weighted activity; stars set window capacity and
+            contributors determine occupancy. Repository size sets footprint,
+            recent pushes power the beacon, and archived projects stay dark.
           </p>
         </aside>
       )}

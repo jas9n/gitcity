@@ -30,6 +30,7 @@ export type CityBuilding = RepositorySignal & {
   depth: number;
   brightness: number;
   windowCount: number;
+  recentActivity: number;
   tier: BuildingTier;
   accent: string;
   district: string;
@@ -159,7 +160,10 @@ function createLayout(repositories: RepositorySignal[]) {
   return placements;
 }
 
-export function buildCity(repositories: RepositorySignal[]): CityBuilding[] {
+export function buildCity(
+  repositories: RepositorySignal[],
+  referenceTime = Date.now(),
+): CityBuilding[] {
   if (repositories.length === 0) return [];
 
   const scores = repositories.map(activityScore);
@@ -193,15 +197,14 @@ export function buildCity(repositories: RepositorySignal[]): CityBuilding[] {
     const sizeNormalized = clamp(Math.log1p(repo.sizeKb) / sizeCeiling, 0, 1);
     const height = repo.archived ? 1.4 : 2.2 + activityNormalized * 15.8;
     const width = 1.8 + Math.sqrt(sizeNormalized) * 1.35;
-    const brightness = repo.archived
-      ? 0.04
-      : clamp(
-          0.1 +
-            starsNormalized * 0.35 +
-            contributorsNormalized * 0.65,
-          0.1,
-          1,
-        );
+    const brightness = repo.archived ? 0 : contributorsNormalized;
+    const pushedTime = new Date(repo.pushedAt).getTime();
+    const daysSincePush = Number.isFinite(pushedTime)
+      ? Math.max(0, (referenceTime - pushedTime) / 86_400_000)
+      : 30;
+    const recentActivity = repo.archived
+      ? 0
+      : clamp(1 - daysSincePush / 30, 0, 1);
     const tier: BuildingTier =
       height > 15
         ? "landmark"
@@ -223,6 +226,7 @@ export function buildCity(repositories: RepositorySignal[]): CityBuilding[] {
       depth: width * (0.8 + ((hashString(repo.name) >> 4) % 18) / 100),
       brightness,
       windowCount: Math.round(4 + starsNormalized * 20),
+      recentActivity,
       tier,
       accent: languageColor(repo.language),
       district: repo.language || "Other",

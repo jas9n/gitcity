@@ -27,6 +27,7 @@ import {
   FogExp2,
   InstancedMesh,
   Mesh,
+  MeshBasicMaterial,
   Object3D,
 } from "three";
 import type { CityBuilding } from "@/lib/city-model";
@@ -126,12 +127,78 @@ function LanguageSurface({
   );
 }
 
+function RooftopBeacons({
+  buildings,
+  reduceMotion,
+}: {
+  buildings: CityBuilding[];
+  reduceMotion: boolean;
+}) {
+  const recentBuildings = useMemo(
+    () =>
+      buildings.filter(
+        (building) => !building.archived && building.recentActivity > 0.04,
+      ),
+    [buildings],
+  );
+  const beacons = useRef<InstancedMesh>(null);
+  const beaconMaterial = useRef<MeshBasicMaterial>(null);
+  const dummy = useMemo(() => new Object3D(), []);
+
+  useLayoutEffect(() => {
+    if (!beacons.current) return;
+    recentBuildings.forEach((building, index) => {
+      const scale = 0.72 + building.recentActivity * 0.55;
+      dummy.position.set(
+        building.position[0],
+        building.height + 0.2,
+        building.position[2],
+      );
+      dummy.rotation.set(0, building.rotation, 0);
+      dummy.scale.set(scale, scale, scale);
+      dummy.updateMatrix();
+      beacons.current!.setMatrixAt(index, dummy.matrix);
+    });
+    beacons.current.instanceMatrix.needsUpdate = true;
+    beacons.current.computeBoundingSphere();
+  }, [dummy, recentBuildings]);
+
+  useFrame((state) => {
+    if (!beaconMaterial.current) return;
+    beaconMaterial.current.opacity = reduceMotion
+      ? 0.72
+      : 0.58 + Math.sin(state.clock.elapsedTime * 2.2) * 0.18;
+  });
+
+  if (recentBuildings.length === 0) return null;
+
+  return (
+    <instancedMesh
+      ref={beacons}
+      args={[undefined, undefined, recentBuildings.length]}
+      raycast={() => null}
+    >
+      <cylinderGeometry args={[0.055, 0.1, 0.3, 8]} />
+      <meshBasicMaterial
+        ref={beaconMaterial}
+        color="#7cecff"
+        transparent
+        opacity={0.72}
+        depthWrite={false}
+        blending={AdditiveBlending}
+        toneMapped={false}
+      />
+    </instancedMesh>
+  );
+}
+
 function BuildingInstances({
   buildings,
   selectedId,
   onSelect,
   onHover,
-}: Omit<CitySceneProps, "reduceMotion">) {
+  reduceMotion,
+}: CitySceneProps) {
   const bodies = useRef<InstancedMesh>(null);
   const bases = useRef<InstancedMesh>(null);
   const caps = useRef<InstancedMesh>(null);
@@ -392,8 +459,16 @@ function BuildingInstances({
         raycast={() => null}
       >
         <boxGeometry args={[1, 1, 1]} />
-        <meshBasicMaterial color="#5be9ff" toneMapped={false} />
+        <meshStandardMaterial
+          color="#294552"
+          emissive="#112a35"
+          emissiveIntensity={0.58}
+          metalness={0.65}
+          roughness={0.48}
+        />
       </instancedMesh>
+
+      <RooftopBeacons buildings={buildings} reduceMotion={reduceMotion} />
 
       {litWindowCount > 0 && (
         <instancedMesh
@@ -542,6 +617,7 @@ function Scene({
           selectedId={selectedId}
           onSelect={onSelect}
           onHover={onHover}
+          reduceMotion={reduceMotion}
         />
         <TrafficLines reduceMotion={reduceMotion} center={bounds.center} />
       </group>

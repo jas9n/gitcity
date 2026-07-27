@@ -24,13 +24,13 @@ development activity shapes the skyline.
 | Very recent activity | Rooftop beacon or pulse |
 | Primary language | Building material/accent color |
 | Repository size | Building footprint |
-| Repository age | Architectural style/weathering |
 | Archived repository | Darkened, inactive building |
-| Fork | Smaller related building or annex |
-| Owner/team | District or city block |
 
 Keep these visual signals separate: popularity controls lighting capacity,
 people create occupancy, and activity creates height.
+
+Do not add separate repository-age, fork, or owner/team geometry. The selected
+owner already represents the entire city.
 
 Use the rolling 30-day activity score:
 
@@ -39,9 +39,9 @@ Use the rolling 30-day activity score:
 Height uses logarithmic scaling normalized against the city’s 95th percentile
 so one highly active repository does not flatten the rest of the skyline.
 
-Lighting uses logarithmic/normalized stars for window capacity and contributor
-occupancy for the proportion lit. The target brightness blend is approximately
-`0.35 × normalized stars + 0.65 × normalized contributors`.
+Lighting keeps popularity and people separate: logarithmic/normalized stars
+set window capacity, while normalized active contributors set the percentage
+of those windows currently lit.
 
 ## Color direction
 

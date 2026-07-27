@@ -808,6 +808,16 @@ a:focus-visible {
   box-shadow: 0 0 8px rgba(186, 143, 255, 0.5);
 }
 
+.legend-beacon {
+  background: #7cecff;
+  box-shadow: 0 0 10px rgba(124, 236, 255, 0.75);
+}
+
+.legend-footprint {
+  background: #7f91a0;
+  box-shadow: 0 0 8px rgba(127, 145, 160, 0.4);
+}
+
 .legend p {
   display: flex;
   flex-direction: column;
