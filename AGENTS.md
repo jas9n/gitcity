@@ -61,11 +61,6 @@ neutral gray. Roofs share their building color, hover uses a darker version of
 that same color without changing building geometry or covering windows, and
 archived repositories remain visibly subdued.
 
-Keep instanced building batches stable across hover and selection. Batch only by
-the persistent building material color, and apply hover/selection as
-per-instance colors. Interaction must never move a building into another batch
-or recreate its geometry.
-
 ## Experience and architecture
 
 Visitors enter or choose a GitHub username/organization, watch the city
