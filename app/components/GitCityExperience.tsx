@@ -724,6 +724,10 @@ export function GitCityExperience() {
               <strong>{selected.height.toFixed(1)} units</strong>
             </div>
             <div className="profile-row">
+              <span>Levels</span>
+              <strong>{selected.levelCount} activity floors</strong>
+            </div>
+            <div className="profile-row">
               <span>Windows</span>
               <strong>
                 {selected.windowCount} · {Math.round(selected.brightness * 100)}% lit

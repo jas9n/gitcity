@@ -29,6 +29,7 @@ export type CityBuilding = RepositorySignal & {
   width: number;
   depth: number;
   brightness: number;
+  levelCount: number;
   windowCount: number;
   recentActivity: number;
   tier: BuildingTier;
@@ -225,6 +226,7 @@ export function buildCity(
       width,
       depth: width * (0.8 + ((hashString(repo.name) >> 4) % 18) / 100),
       brightness,
+      levelCount: Math.max(2, Math.min(14, Math.round(height / 1.15))),
       windowCount: Math.round(4 + starsNormalized * 20),
       recentActivity,
       tier,

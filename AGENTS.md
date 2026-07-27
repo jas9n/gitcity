@@ -36,13 +36,16 @@ Use the rolling 30-day activity score:
 
 `commits + 3 × merged PRs + 2 × closed issues + opened issues`
 
-Height uses logarithmic scaling normalized against the city’s 95th percentile
-so one highly active repository does not flatten the rest of the skyline.
+Height and visible floor rows use logarithmic activity scaling normalized
+against the city’s 95th percentile so one highly active repository does not
+flatten the rest of the skyline.
 
 Lighting keeps popularity and people separate: logarithmic/normalized stars
-set window capacity, while normalized active contributors set the percentage
-of those windows currently lit. Render windows as individual façade panes, not
-continuous horizontal bands, with at least three panes per visible row.
+set the number of panes per row, while normalized active contributors set the
+percentage of those windows currently lit. Keep unlit panes visible, and give
+each active, non-archived building one baseline lit pane per façade. Render
+windows as individual façade panes, not continuous horizontal bands, with at
+least three panes per visible row.
 
 ## Color direction
 

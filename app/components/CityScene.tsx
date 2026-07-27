@@ -271,12 +271,16 @@ function BuildingInstances({
       buildings.flatMap((building) => {
         const rows =
           buildings.length > 500
-            ? 1
+            ? Math.min(6, building.levelCount)
             : buildings.length > 120
-              ? 2
-              : Math.max(1, Math.min(4, Math.ceil(building.windowCount / 6)));
-        const columns =
-          buildings.length > 120 ? 3 : building.windowCount >= 20 ? 4 : 3;
+              ? Math.min(9, building.levelCount)
+              : building.levelCount;
+        const columnLimit =
+          buildings.length > 500 ? 4 : buildings.length > 120 ? 5 : 6;
+        const columns = Math.min(
+          columnLimit,
+          3 + Math.floor(Math.max(0, building.windowCount - 4) / 5),
+        );
         return Array.from({ length: rows }, (_, row) =>
           Array.from({ length: 4 }, (_, side) =>
             Array.from({ length: columns }, (_, column) => ({
@@ -288,12 +292,13 @@ function BuildingInstances({
               side,
               lit:
                 !building.archived &&
-                (hashString(
-                  `${building.fullName}:${row}:${side}:${column}`,
-                ) %
-                  1000) /
-                  1000 <
-                  building.brightness,
+                ((building.activityScore > 0 && row === 0 && column === 0) ||
+                  (hashString(
+                    `${building.fullName}:${row}:${side}:${column}`,
+                  ) %
+                    1000) /
+                    1000 <
+                    building.brightness),
             })),
           ).flat(),
         ).flat();
