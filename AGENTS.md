@@ -41,14 +41,16 @@ so one highly active repository does not flatten the rest of the skyline.
 
 Lighting keeps popularity and people separate: logarithmic/normalized stars
 set window capacity, while normalized active contributors set the percentage
-of those windows currently lit.
+of those windows currently lit. Render windows as individual façade panes, not
+continuous horizontal bands.
 
 ## Color direction
 
 Use recognizable core colors for common languages (for example TypeScript,
 JavaScript, Python, Go, Rust, Java, Ruby, Swift, Kotlin, C/C++, C#, PHP, Shell,
 HTML, and CSS). Languages outside the curated common palette use a consistent
-neutral gray. Archived repositories remain visibly subdued.
+neutral gray. Roofs share their building color, hover uses a darker version of
+that same color, and archived repositories remain visibly subdued.
 
 ## Experience and architecture
 
