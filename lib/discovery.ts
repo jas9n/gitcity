@@ -5,13 +5,6 @@ export type FeaturedOrganization = {
   monogram: string;
 };
 
-export type FeaturedRepository = {
-  fullName: `${string}/${string}`;
-  name: string;
-  ownerName: string;
-  description: string;
-};
-
 export const featuredOrganizations: FeaturedOrganization[] = [
   {
     owner: "vercel",
@@ -61,73 +54,84 @@ export const featuredOrganizations: FeaturedOrganization[] = [
     description: "Foundational open source projects at global scale.",
     monogram: "AP",
   },
-];
-
-export const featuredRepositories: FeaturedRepository[] = [
   {
-    fullName: "facebook/react",
-    name: "React",
-    ownerName: "Meta",
-    description: "A library for web and native user interfaces.",
+    owner: "github",
+    name: "GitHub",
+    description: "Developer infrastructure and collaborative tooling.",
+    monogram: "GH",
   },
   {
-    fullName: "microsoft/vscode",
-    name: "VS Code",
-    ownerName: "Microsoft",
-    description: "The open source code editor.",
+    owner: "apple",
+    name: "Apple",
+    description: "Languages, frameworks, and systems software.",
+    monogram: "AL",
   },
   {
-    fullName: "vercel/next.js",
-    name: "Next.js",
-    ownerName: "Vercel",
-    description: "The React framework for the web.",
+    owner: "netflix",
+    name: "Netflix",
+    description: "Cloud platforms and distributed systems.",
+    monogram: "NF",
   },
   {
-    fullName: "tensorflow/tensorflow",
+    owner: "tensorflow",
     name: "TensorFlow",
-    ownerName: "TensorFlow",
-    description: "An end-to-end machine learning platform.",
+    description: "Machine learning frameworks and model tooling.",
+    monogram: "TF",
   },
   {
-    fullName: "rust-lang/rust",
-    name: "Rust",
-    ownerName: "Rust",
-    description: "A language empowering reliable software.",
+    owner: "cloudflare",
+    name: "Cloudflare",
+    description: "Edge computing, networking, and security.",
+    monogram: "CF",
   },
   {
-    fullName: "kubernetes/kubernetes",
-    name: "Kubernetes",
-    ownerName: "Kubernetes",
-    description: "Production-grade container orchestration.",
+    owner: "docker",
+    name: "Docker",
+    description: "Containers and cloud-native development.",
+    monogram: "DK",
   },
   {
-    fullName: "denoland/deno",
+    owner: "hashicorp",
+    name: "HashiCorp",
+    description: "Infrastructure automation and cloud operations.",
+    monogram: "HC",
+  },
+  {
+    owner: "mozilla",
+    name: "Mozilla",
+    description: "Open web standards, browsers, and privacy.",
+    monogram: "MZ",
+  },
+  {
+    owner: "nodejs",
+    name: "Node.js",
+    description: "The JavaScript runtime and its ecosystem.",
+    monogram: "ND",
+  },
+  {
+    owner: "denoland",
     name: "Deno",
-    ownerName: "Deno",
-    description: "A secure JavaScript and TypeScript runtime.",
+    description: "Modern JavaScript and TypeScript tooling.",
+    monogram: "DN",
   },
   {
-    fullName: "supabase/supabase",
+    owner: "supabase",
     name: "Supabase",
-    ownerName: "Supabase",
-    description: "An open source development platform.",
+    description: "Open source database and backend platform.",
+    monogram: "SB",
+  },
+  {
+    owner: "elastic",
+    name: "Elastic",
+    description: "Search, observability, and security systems.",
+    monogram: "EL",
   },
 ];
 
-const cachedOwners = new Set([
-  ...featuredOrganizations.map((item) => item.owner.toLowerCase()),
-  ...featuredRepositories.map((item) =>
-    item.fullName.split("/")[0].toLowerCase(),
-  ),
-]);
-
-const cachedRepositories = new Set(
-  featuredRepositories.map((item) => item.fullName.toLowerCase()),
+const cachedOwners = new Set(
+  featuredOrganizations.map((item) => item.owner.toLowerCase()),
 );
 
-export function isCachedExploreTarget(owner: string, repository?: string) {
-  return (
-    cachedOwners.has(owner.toLowerCase()) ||
-    (repository ? cachedRepositories.has(repository.toLowerCase()) : false)
-  );
+export function isCachedExploreTarget(owner: string) {
+  return cachedOwners.has(owner.toLowerCase());
 }

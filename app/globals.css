@@ -382,6 +382,14 @@ a:focus-visible {
   padding-top: 15px;
 }
 
+.discovery-group-wide {
+  grid-column: 1 / -1;
+}
+
+.discovery-list-organizations {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .discovery-group-title {
   display: flex;
   align-items: center;
@@ -424,8 +432,7 @@ a:focus-visible {
   transform: translateY(-1px);
 }
 
-.discovery-monogram,
-.discovery-repo-mark {
+.discovery-monogram {
   display: grid;
   place-items: center;
   width: 34px;
@@ -437,12 +444,6 @@ a:focus-visible {
   font-size: 8px;
   font-weight: 700;
   letter-spacing: 0.08em;
-}
-
-.discovery-repo-mark {
-  border-color: rgba(255, 201, 106, 0.22);
-  color: var(--gold);
-  background: rgba(255, 201, 106, 0.07);
 }
 
 .discovery-list button > span:nth-child(2) {
@@ -1242,6 +1243,10 @@ a:focus-visible {
   }
 
   .discovery-columns {
+    grid-template-columns: 1fr;
+  }
+
+  .discovery-list-organizations {
     grid-template-columns: 1fr;
   }
 

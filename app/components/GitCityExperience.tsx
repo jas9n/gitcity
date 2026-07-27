@@ -34,10 +34,7 @@ import {
   type RepositorySignal,
 } from "@/lib/city-model";
 import { demoRepositories } from "@/lib/demo-data";
-import {
-  featuredOrganizations,
-  featuredRepositories,
-} from "@/lib/discovery";
+import { featuredOrganizations } from "@/lib/discovery";
 
 const CityScene = dynamic(
   () => import("./CityScene").then((module) => module.CityScene),
@@ -481,16 +478,16 @@ export function GitCityExperience() {
                   <span>DISCOVERY INDEX</span>
                   <h2>Explore without searching</h2>
                 </div>
-                <small>Select a city or landmark</small>
+                <small>Select an organization</small>
               </div>
 
               <div className="discovery-columns">
-                <div className="discovery-group">
+                <div className="discovery-group discovery-group-wide">
                   <div className="discovery-group-title">
                     <Building2 size={13} aria-hidden="true" />
-                    <span>Featured organizations</span>
+                    <span>Popular organizations</span>
                   </div>
-                  <div className="discovery-list">
+                  <div className="discovery-list discovery-list-organizations">
                     {featuredOrganizations.map((organization) => (
                       <button
                         key={organization.owner}
@@ -509,38 +506,6 @@ export function GitCityExperience() {
                         <span>
                           <strong>{organization.name}</strong>
                           <small>{organization.description}</small>
-                        </span>
-                        <ArrowUpRight size={13} aria-hidden="true" />
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="discovery-group">
-                  <div className="discovery-group-title">
-                    <Star size={13} aria-hidden="true" />
-                    <span>Popular repositories</span>
-                  </div>
-                  <div className="discovery-list">
-                    {featuredRepositories.map((repository) => (
-                      <button
-                        key={repository.fullName}
-                        type="button"
-                        onClick={() =>
-                          void loadTarget({
-                            owner: repository.fullName.split("/")[0],
-                            repository: repository.fullName,
-                            view: "popular",
-                            sourceLabel: "FEATURED REPOSITORY",
-                          })
-                        }
-                      >
-                        <span className="discovery-repo-mark">R</span>
-                        <span>
-                          <strong>{repository.name}</strong>
-                          <small>
-                            {repository.ownerName} · {repository.description}
-                          </small>
                         </span>
                         <ArrowUpRight size={13} aria-hidden="true" />
                       </button>

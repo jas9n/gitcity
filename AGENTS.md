@@ -3,7 +3,7 @@
 Preserve the current product while evolving it. In particular, do not regress:
 
 - progressive, paginated GitHub loading;
-- durable caching for Explore organizations and repositories;
+- durable caching for Explore organizations;
 - the immutable offline demo city;
 - dense city-block spacing and deterministic placement;
 - instanced large-scale rendering;

@@ -254,7 +254,7 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const exploreTarget = isCachedExploreTarget(owner, focusedRepository);
+  const exploreTarget = isCachedExploreTarget(owner);
   const key = cacheKey({
     owner,
     page,
