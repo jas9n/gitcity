@@ -194,13 +194,19 @@ a:focus-visible {
   letter-spacing: 0.1em;
 }
 
+.search-hub {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+}
+
 .owner-search {
   height: 40px;
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: auto auto auto minmax(80px, 1fr) auto;
   align-items: center;
-  gap: 10px;
-  padding: 0 4px 0 14px;
+  gap: 9px;
+  padding: 0 4px 0 5px;
   border: 1px solid rgba(124, 178, 208, 0.22);
   background: rgba(5, 13, 22, 0.72);
   box-shadow: 0 12px 50px rgba(0, 0, 0, 0.18);
@@ -208,6 +214,45 @@ a:focus-visible {
 
 .owner-search > svg {
   color: #7b92a6;
+}
+
+.discovery-trigger {
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+  border: 0;
+  background: transparent;
+  color: #a9eff8;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 8px;
+  font-weight: 650;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: color 180ms ease, background 180ms ease;
+}
+
+.discovery-trigger:hover,
+.discovery-trigger[aria-expanded="true"] {
+  color: #e4fbff;
+  background: rgba(82, 220, 245, 0.09);
+}
+
+.discovery-trigger svg:last-child {
+  color: #688396;
+  transition: transform 180ms ease;
+}
+
+.discovery-trigger svg:last-child.open {
+  transform: rotate(180deg);
+}
+
+.search-divider {
+  width: 1px;
+  height: 20px;
+  background: rgba(126, 211, 255, 0.13);
 }
 
 .owner-search input {
@@ -225,7 +270,7 @@ a:focus-visible {
   color: #506579;
 }
 
-.owner-search button {
+.owner-search .build-city-button {
   height: 32px;
   display: inline-flex;
   align-items: center;
@@ -243,14 +288,175 @@ a:focus-visible {
   transition: 180ms ease;
 }
 
-.owner-search button:hover:not(:disabled) {
+.owner-search .build-city-button:hover:not(:disabled) {
   border-color: rgba(101, 229, 255, 0.55);
   background: rgba(72, 204, 232, 0.18);
 }
 
-.owner-search button:disabled {
+.owner-search .build-city-button:disabled {
   opacity: 0.42;
   cursor: not-allowed;
+}
+
+.discovery-panel {
+  position: absolute;
+  z-index: 70;
+  top: 48px;
+  left: 50%;
+  width: min(720px, calc(100vw - 32px));
+  max-height: min(590px, calc(100svh - 110px));
+  overflow: auto;
+  padding: 17px;
+  border: 1px solid rgba(105, 218, 245, 0.24);
+  background:
+    linear-gradient(145deg, rgba(8, 20, 33, 0.98), rgba(3, 10, 18, 0.98));
+  box-shadow:
+    0 34px 100px rgba(0, 0, 0, 0.62),
+    inset 0 1px rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(24px);
+  transform: translateX(-50%);
+  animation: discovery-in 180ms cubic-bezier(0.22, 0.8, 0.26, 1);
+}
+
+.discovery-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 2px 3px 15px;
+  border-bottom: 1px solid rgba(126, 211, 255, 0.1);
+}
+
+.discovery-heading span,
+.discovery-heading small,
+.discovery-group-title {
+  font-family: var(--font-geist-mono), monospace;
+  text-transform: uppercase;
+}
+
+.discovery-heading span {
+  color: var(--cyan);
+  font-size: 7px;
+  font-weight: 650;
+  letter-spacing: 0.2em;
+}
+
+.discovery-heading h2 {
+  margin: 5px 0 0;
+  color: #edfaff;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 15px;
+  font-weight: 470;
+  letter-spacing: -0.02em;
+}
+
+.discovery-heading small {
+  color: #536d80;
+  font-size: 7px;
+  letter-spacing: 0.12em;
+}
+
+.discovery-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  padding-top: 15px;
+}
+
+.discovery-group-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0 2px 8px;
+  color: #7893a6;
+  font-size: 7px;
+  font-weight: 650;
+  letter-spacing: 0.15em;
+}
+
+.discovery-group-title svg {
+  color: var(--cyan);
+}
+
+.discovery-list {
+  display: grid;
+  gap: 5px;
+}
+
+.discovery-list button {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  min-height: 52px;
+  padding: 7px 10px 7px 8px;
+  border: 1px solid rgba(122, 187, 217, 0.1);
+  background: rgba(12, 27, 41, 0.55);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
+}
+
+.discovery-list button:hover {
+  border-color: rgba(99, 231, 255, 0.34);
+  background: rgba(25, 58, 76, 0.58);
+  transform: translateY(-1px);
+}
+
+.discovery-monogram,
+.discovery-repo-mark {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid rgba(99, 231, 255, 0.2);
+  color: #b9f6ff;
+  background: rgba(61, 192, 220, 0.08);
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.discovery-repo-mark {
+  border-color: rgba(255, 201, 106, 0.22);
+  color: var(--gold);
+  background: rgba(255, 201, 106, 0.07);
+}
+
+.discovery-list button > span:nth-child(2) {
+  min-width: 0;
+}
+
+.discovery-list strong,
+.discovery-list small {
+  display: block;
+}
+
+.discovery-list strong {
+  overflow: hidden;
+  color: #e5f5fb;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 10px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.discovery-list small {
+  margin-top: 3px;
+  overflow: hidden;
+  color: #678094;
+  font-size: 9px;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.discovery-list button > svg {
+  color: #506b7f;
 }
 
 .system-status {
@@ -925,6 +1131,18 @@ a:focus-visible {
   }
 }
 
+@keyframes discovery-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -5px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
 @media (max-width: 1100px) {
   .topbar {
     grid-template-columns: 1fr minmax(310px, 440px);
@@ -962,6 +1180,35 @@ a:focus-visible {
 
   .owner-search {
     width: 100%;
+  }
+
+  .owner-search > svg,
+  .search-divider {
+    display: none;
+  }
+
+  .owner-search {
+    grid-template-columns: auto minmax(76px, 1fr) auto;
+    gap: 5px;
+  }
+
+  .owner-search .build-city-button {
+    padding: 0 9px;
+  }
+
+  .discovery-panel {
+    top: 46px;
+    width: 100%;
+    max-height: calc(100svh - 136px);
+    padding: 14px;
+  }
+
+  .discovery-heading small {
+    display: none;
+  }
+
+  .discovery-columns {
+    grid-template-columns: 1fr;
   }
 
   .city-intro {

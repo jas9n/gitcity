@@ -36,6 +36,7 @@ test("server-renders the Git City product shell", async () => {
   assert.match(html, /CITY/);
   assert.match(html, /OPEN CITY LABS/);
   assert.match(html, /CITY SIGNALS/);
+  assert.match(html, /Explore/);
   assert.match(html, /Build city/);
   assert.doesNotMatch(html, /codex-preview/);
   assert.doesNotMatch(html, /Your site is taking shape/);

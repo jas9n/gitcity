@@ -31,7 +31,7 @@ export async function generateMetadata(): Promise<Metadata> {
       template: "%s · Git/City",
     },
     description:
-      "A living 3D skyline shaped by GitHub repositories, code activity, community, and momentum.",
+      "Explore notable organizations and popular repositories as a living 3D skyline shaped by code activity, community, and momentum.",
     applicationName: "Git/City",
     keywords: [
       "GitHub",
@@ -44,14 +44,14 @@ export async function generateMetadata(): Promise<Metadata> {
       type: "website",
       title: "Git/City — Repositories become a living skyline",
       description:
-        "Explore GitHub repositories as a cinematic interactive 3D city.",
+        "Explore notable open source organizations and repositories as a cinematic interactive 3D city.",
       url: metadataBase,
       siteName: "Git/City",
       images: [
         {
           url: new URL("/og.png", metadataBase),
-          width: 1731,
-          height: 909,
+          width: 1729,
+          height: 910,
           alt: "Git/City — repositories become a living skyline",
         },
       ],
@@ -60,7 +60,7 @@ export async function generateMetadata(): Promise<Metadata> {
       card: "summary_large_image",
       title: "Git/City — Repositories become a living skyline",
       description:
-        "Explore GitHub repositories as a cinematic interactive 3D city.",
+        "Explore notable open source organizations and repositories as a cinematic interactive 3D city.",
       images: [new URL("/og.png", metadataBase)],
     },
     robots: {

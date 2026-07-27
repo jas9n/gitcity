@@ -9,6 +9,7 @@ facades, and programming languages form distinct city districts.
 - a cinematic interactive city built with React Three Fiber
 - deterministic repository scoring, normalization, and placement
 - public GitHub user and organization lookup
+- curated discovery for notable organizations and popular repositories
 - activity, popularity, archive, and language filters
 - repository inspection with a documented visual model
 - responsive controls and reduced-motion support

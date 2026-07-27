@@ -3,6 +3,8 @@ import type { RepositorySignal } from "@/lib/city-model";
 
 const GITHUB_API = "https://api.github.com";
 const OWNER_PATTERN = /^[a-z\d](?:[a-z\d-]{0,37}[a-z\d])?$/i;
+const REPOSITORY_PATTERN =
+  /^[a-z\d](?:[a-z\d-]{0,37}[a-z\d])?\/[a-z\d._-]{1,100}$/i;
 const MAX_REPOSITORIES = 18;
 
 type GitHubRepository = {
@@ -20,6 +22,19 @@ type GitHubRepository = {
   pushed_at: string;
   archived: boolean;
   fork: boolean;
+  owner?: {
+    login: string;
+    type: "Organization" | "User";
+  };
+};
+
+type GitHubOwner = {
+  login: string;
+  type: "Organization" | "User";
+};
+
+type GitHubSearchResponse = {
+  items: GitHubRepository[];
 };
 
 function githubHeaders() {
@@ -78,6 +93,23 @@ async function collectRepoMetrics(repo: GitHubRepository) {
   };
 }
 
+function githubError(status: number) {
+  return status === 403 || status === 429
+    ? "GitHub’s public request limit is busy. Try the demo city or wait a few minutes."
+    : "That GitHub owner could not be loaded.";
+}
+
+async function fetchPopularRepositories(
+  owner: string,
+  ownerType: "organization" | "user",
+) {
+  const qualifier = ownerType === "organization" ? "org" : "user";
+  const query = `${qualifier}:${owner} fork:false archived:false`;
+  return fetchGitHub(
+    `/search/repositories?q=${encodeURIComponent(query)}&sort=stars&order=desc&per_page=${MAX_REPOSITORIES}`,
+  );
+}
+
 async function mapWithConcurrency<T, R>(
   items: T[],
   concurrency: number,
@@ -101,38 +133,118 @@ async function mapWithConcurrency<T, R>(
 }
 
 export async function GET(request: NextRequest) {
-  const owner = request.nextUrl.searchParams.get("owner")?.trim() ?? "";
+  const requestedOwner =
+    request.nextUrl.searchParams.get("owner")?.trim() ?? "";
+  const focusedRepository =
+    request.nextUrl.searchParams.get("repo")?.trim() ?? "";
+  const view = request.nextUrl.searchParams.get("view")?.trim() ?? "";
+  const repositoryOwner = focusedRepository.split("/")[0] ?? "";
+  const owner = focusedRepository ? repositoryOwner : requestedOwner;
+
   if (!OWNER_PATTERN.test(owner)) {
     return NextResponse.json(
       { error: "Enter a valid GitHub username or organization." },
       { status: 400 },
     );
   }
+  if (focusedRepository && !REPOSITORY_PATTERN.test(focusedRepository)) {
+    return NextResponse.json(
+      { error: "Enter a valid repository in owner/name format." },
+      { status: 400 },
+    );
+  }
+  if (view && view !== "popular") {
+    return NextResponse.json(
+      { error: "That repository view is not supported." },
+      { status: 400 },
+    );
+  }
 
   try {
     let ownerType: "organization" | "user" = "organization";
-    let repositoryResponse = await fetchGitHub(
-      `/orgs/${encodeURIComponent(owner)}/repos?per_page=${MAX_REPOSITORIES}&sort=pushed&type=public`,
-    );
+    let rawRepositories: GitHubRepository[] = [];
+    const wantsPopular = view === "popular" || Boolean(focusedRepository);
 
-    if (repositoryResponse.status === 404) {
-      ownerType = "user";
-      repositoryResponse = await fetchGitHub(
-        `/users/${encodeURIComponent(owner)}/repos?per_page=${MAX_REPOSITORIES}&sort=pushed&type=owner`,
+    if (wantsPopular) {
+      const [ownerResponse, focusResponse] = await Promise.all([
+        fetchGitHub(`/users/${encodeURIComponent(owner)}`),
+        focusedRepository
+          ? fetchGitHub(
+              `/repos/${focusedRepository
+                .split("/")
+                .map(encodeURIComponent)
+                .join("/")}`,
+            )
+          : Promise.resolve(null),
+      ]);
+
+      if (!ownerResponse.ok) {
+        return NextResponse.json(
+          { error: githubError(ownerResponse.status) },
+          { status: ownerResponse.status },
+        );
+      }
+      if (focusResponse && !focusResponse.ok) {
+        return NextResponse.json(
+          {
+            error:
+              focusResponse.status === 404
+                ? "That featured repository could not be loaded."
+                : githubError(focusResponse.status),
+          },
+          { status: focusResponse.status },
+        );
+      }
+
+      const ownerIdentity = (await ownerResponse.json()) as GitHubOwner;
+      ownerType =
+        ownerIdentity.type === "Organization" ? "organization" : "user";
+      const repositoryResponse = await fetchPopularRepositories(owner, ownerType);
+
+      if (!repositoryResponse.ok) {
+        return NextResponse.json(
+          { error: githubError(repositoryResponse.status) },
+          { status: repositoryResponse.status },
+        );
+      }
+
+      const search = (await repositoryResponse.json()) as GitHubSearchResponse;
+      const focus = focusResponse
+        ? ((await focusResponse.json()) as GitHubRepository)
+        : null;
+      rawRepositories = focus
+        ? [
+            focus,
+            ...search.items.filter((repo) => repo.full_name !== focus.full_name),
+          ]
+        : search.items;
+    } else {
+      let repositoryResponse = await fetchGitHub(
+        `/orgs/${encodeURIComponent(owner)}/repos?per_page=${MAX_REPOSITORIES}&sort=pushed&type=public`,
       );
+
+      if (repositoryResponse.status === 404) {
+        ownerType = "user";
+        repositoryResponse = await fetchGitHub(
+          `/users/${encodeURIComponent(owner)}/repos?per_page=${MAX_REPOSITORIES}&sort=pushed&type=owner`,
+        );
+      }
+
+      if (!repositoryResponse.ok) {
+        return NextResponse.json(
+          { error: githubError(repositoryResponse.status) },
+          { status: repositoryResponse.status },
+        );
+      }
+      rawRepositories =
+        (await repositoryResponse.json()) as GitHubRepository[];
     }
 
-    if (!repositoryResponse.ok) {
-      const message =
-        repositoryResponse.status === 403
-          ? "GitHub’s public request limit is busy. Try the demo city or wait a few minutes."
-          : "That GitHub owner could not be loaded.";
-      return NextResponse.json({ error: message }, { status: repositoryResponse.status });
-    }
-
-    const rawRepositories = (await repositoryResponse.json()) as GitHubRepository[];
     const repositories = rawRepositories
-      .filter((repo) => !repo.fork)
+      .filter(
+        (repo) =>
+          !repo.fork || repo.full_name.toLowerCase() === focusedRepository.toLowerCase(),
+      )
       .slice(0, MAX_REPOSITORIES);
     const metrics = await mapWithConcurrency(repositories, 4, collectRepoMetrics);
 
@@ -163,11 +275,15 @@ export async function GET(request: NextRequest) {
         owner,
         ownerType,
         repositories: normalized,
+        view: wantsPopular ? "popular" : "recent",
+        focusedRepository: focusedRepository || null,
         collectedAt: new Date().toISOString(),
       },
       {
         headers: {
-          "Cache-Control": "public, s-maxage=900, stale-while-revalidate=86400",
+          "Cache-Control": wantsPopular
+            ? "public, s-maxage=3600, stale-while-revalidate=86400"
+            : "public, s-maxage=900, stale-while-revalidate=86400",
         },
       },
     );

@@ -6,6 +6,8 @@ import {
   ArrowUpRight,
   Box,
   Building2,
+  ChevronDown,
+  Compass,
   GitFork,
   GitCommitHorizontal,
   Info,
@@ -16,7 +18,14 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import {
+  FormEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   activityScore,
   buildCity,
@@ -25,6 +34,10 @@ import {
   type RepositorySignal,
 } from "@/lib/city-model";
 import { demoRepositories } from "@/lib/demo-data";
+import {
+  featuredOrganizations,
+  featuredRepositories,
+} from "@/lib/discovery";
 
 const CityScene = dynamic(
   () => import("./CityScene").then((module) => module.CityScene),
@@ -40,6 +53,14 @@ const CityScene = dynamic(
 );
 
 type FilterMode = "all" | "active" | "popular" | "archived";
+type HistoryMode = "none" | "push";
+
+type CityTarget = {
+  owner: string;
+  view?: "popular";
+  repository?: string;
+  sourceLabel?: string;
+};
 
 const formatNumber = (value: number) =>
   new Intl.NumberFormat("en", {
@@ -72,6 +93,8 @@ export function GitCityExperience() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [reduceMotion, setReduceMotion] = useState(false);
+  const [discoveryOpen, setDiscoveryOpen] = useState(false);
+  const searchHubRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const query = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -83,11 +106,25 @@ export function GitCityExperience() {
 
   useEffect(() => {
     const handleKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setSelectedId(null);
+      if (event.key === "Escape") {
+        setSelectedId(null);
+        setDiscoveryOpen(false);
+      }
     };
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
   }, []);
+
+  useEffect(() => {
+    if (!discoveryOpen) return;
+    const closeOutside = (event: PointerEvent) => {
+      if (!searchHubRef.current?.contains(event.target as Node)) {
+        setDiscoveryOpen(false);
+      }
+    };
+    window.addEventListener("pointerdown", closeOutside);
+    return () => window.removeEventListener("pointerdown", closeOutside);
+  }, [discoveryOpen]);
 
   const allBuildings = useMemo(() => buildCity(repositories), [repositories]);
   const languages = useMemo(
@@ -124,22 +161,27 @@ export function GitCityExperience() {
   const hovered =
     allBuildings.find((building) => building.id === hoveredId) ?? null;
 
-  async function loadCity(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const target = owner.trim().replace(/^@/, "");
-    if (!target) return;
-
+  const loadTarget = useCallback(async (
+    target: CityTarget,
+    historyMode: HistoryMode = "push",
+  ) => {
     setIsLoading(true);
     setError("");
     setSelectedId(null);
+    setHoveredId(null);
+    setDiscoveryOpen(false);
 
     try {
-      const response = await fetch(`/api/github?owner=${encodeURIComponent(target)}`);
+      const query = new URLSearchParams({ owner: target.owner });
+      if (target.view) query.set("view", target.view);
+      if (target.repository) query.set("repo", target.repository);
+      const response = await fetch(`/api/github?${query.toString()}`);
       const payload = (await response.json()) as {
         error?: string;
         owner?: string;
         ownerType?: string;
         repositories?: RepositorySignal[];
+        focusedRepository?: string | null;
       };
       if (!response.ok || !payload.repositories) {
         throw new Error(payload.error ?? "This city could not be loaded.");
@@ -148,10 +190,36 @@ export function GitCityExperience() {
         throw new Error("No public, original repositories were found for that owner.");
       }
       setRepositories(payload.repositories);
-      setCityName((payload.owner ?? target).replace(/-/g, " ").toUpperCase());
-      setSourceLabel(`LIVE ${payload.ownerType?.toUpperCase() ?? "GITHUB"}`);
+      setOwner(payload.owner ?? target.owner);
+      setCityName(
+        (payload.owner ?? target.owner).replace(/-/g, " ").toUpperCase(),
+      );
+      setSourceLabel(
+        target.sourceLabel ??
+          `LIVE ${payload.ownerType?.toUpperCase() ?? "GITHUB"}`,
+      );
       setFilter("all");
       setLanguage("All languages");
+      const focused = payload.focusedRepository
+        ? payload.repositories.find(
+            (repo) =>
+              repo.fullName.toLowerCase() ===
+              payload.focusedRepository?.toLowerCase(),
+          )
+        : null;
+      setSelectedId(focused?.id ?? null);
+
+      if (historyMode === "push") {
+        const url = new URL(window.location.href);
+        url.search = "";
+        if (target.repository) {
+          url.searchParams.set("repo", target.repository);
+        } else {
+          url.searchParams.set("owner", target.owner);
+          if (target.view) url.searchParams.set("view", target.view);
+        }
+        window.history.pushState(null, "", `${url.pathname}${url.search}`);
+      }
     } catch (caught) {
       setError(
         caught instanceof Error
@@ -161,17 +229,65 @@ export function GitCityExperience() {
     } finally {
       setIsLoading(false);
     }
+  }, []);
+
+  function loadCity(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const target = owner.trim().replace(/^@/, "");
+    if (!target) return;
+    void loadTarget({ owner: target });
   }
 
-  function restoreDemo() {
+  const restoreDemo = useCallback((historyMode: HistoryMode = "push") => {
     setRepositories(demoRepositories);
+    setOwner("");
     setCityName("OPEN CITY LABS");
     setSourceLabel("CURATED DEMO");
     setFilter("all");
     setLanguage("All languages");
     setSelectedId(null);
+    setHoveredId(null);
+    setDiscoveryOpen(false);
     setError("");
-  }
+    if (historyMode === "push") {
+      window.history.pushState(null, "", window.location.pathname);
+    }
+  }, []);
+
+  useEffect(() => {
+    const loadFromLocation = () => {
+      const params = new URLSearchParams(window.location.search);
+      const repository = params.get("repo");
+      const linkedOwner = params.get("owner");
+      if (repository?.includes("/")) {
+        void loadTarget(
+          {
+            owner: repository.split("/")[0],
+            repository,
+            view: "popular",
+            sourceLabel: "FEATURED REPOSITORY",
+          },
+          "none",
+        );
+      } else if (linkedOwner) {
+        const popular = params.get("view") === "popular";
+        void loadTarget(
+          {
+            owner: linkedOwner,
+            view: popular ? "popular" : undefined,
+            sourceLabel: popular ? "FEATURED ORGANIZATION" : undefined,
+          },
+          "none",
+        );
+      } else {
+        restoreDemo("none");
+      }
+    };
+
+    loadFromLocation();
+    window.addEventListener("popstate", loadFromLocation);
+    return () => window.removeEventListener("popstate", loadFromLocation);
+  }, [loadTarget, restoreDemo]);
 
   return (
     <main className="experience-shell">
@@ -190,7 +306,12 @@ export function GitCityExperience() {
       </section>
 
       <header className="topbar">
-        <button className="brand" type="button" onClick={restoreDemo} aria-label="Restore demo city">
+        <button
+          className="brand"
+          type="button"
+          onClick={() => restoreDemo()}
+          aria-label="Restore demo city"
+        >
           <span className="brand-mark">
             <Building2 size={17} strokeWidth={1.8} />
           </span>
@@ -200,24 +321,127 @@ export function GitCityExperience() {
           <span className="brand-version">01</span>
         </button>
 
-        <form className="owner-search" onSubmit={loadCity}>
-          <GitFork size={15} aria-hidden="true" />
-          <label className="sr-only" htmlFor="github-owner">
-            GitHub username or organization
-          </label>
-          <input
-            id="github-owner"
-            value={owner}
-            onChange={(event) => setOwner(event.target.value)}
-            placeholder="username or organization"
-            autoComplete="off"
-            spellCheck={false}
-          />
-          <button type="submit" disabled={isLoading || owner.trim().length === 0}>
-            {isLoading ? "Building…" : "Build city"}
-            {!isLoading && <ArrowUpRight size={14} />}
-          </button>
-        </form>
+        <div className="search-hub" ref={searchHubRef}>
+          <form className="owner-search" onSubmit={loadCity}>
+            <button
+              className="discovery-trigger"
+              type="button"
+              aria-expanded={discoveryOpen}
+              aria-controls="discovery-panel"
+              onClick={() => setDiscoveryOpen((open) => !open)}
+            >
+              <Compass size={14} aria-hidden="true" />
+              <span>Explore</span>
+              <ChevronDown
+                className={discoveryOpen ? "open" : ""}
+                size={12}
+                aria-hidden="true"
+              />
+            </button>
+            <span className="search-divider" aria-hidden="true" />
+            <GitFork size={15} aria-hidden="true" />
+            <label className="sr-only" htmlFor="github-owner">
+              GitHub username or organization
+            </label>
+            <input
+              id="github-owner"
+              value={owner}
+              onChange={(event) => setOwner(event.target.value)}
+              placeholder="username or organization"
+              autoComplete="off"
+              spellCheck={false}
+            />
+            <button
+              className="build-city-button"
+              type="submit"
+              disabled={isLoading || owner.trim().length === 0}
+            >
+              {isLoading ? "Building…" : "Build city"}
+              {!isLoading && <ArrowUpRight size={14} />}
+            </button>
+          </form>
+
+          {discoveryOpen && (
+            <section
+              className="discovery-panel"
+              id="discovery-panel"
+              aria-label="Explore notable open source cities"
+            >
+              <div className="discovery-heading">
+                <div>
+                  <span>DISCOVERY INDEX</span>
+                  <h2>Explore without searching</h2>
+                </div>
+                <small>Select a city or landmark</small>
+              </div>
+
+              <div className="discovery-columns">
+                <div className="discovery-group">
+                  <div className="discovery-group-title">
+                    <Building2 size={13} aria-hidden="true" />
+                    <span>Featured organizations</span>
+                  </div>
+                  <div className="discovery-list">
+                    {featuredOrganizations.map((organization) => (
+                      <button
+                        key={organization.owner}
+                        type="button"
+                        onClick={() =>
+                          void loadTarget({
+                            owner: organization.owner,
+                            view: "popular",
+                            sourceLabel: "FEATURED ORGANIZATION",
+                          })
+                        }
+                      >
+                        <span className="discovery-monogram">
+                          {organization.monogram}
+                        </span>
+                        <span>
+                          <strong>{organization.name}</strong>
+                          <small>{organization.description}</small>
+                        </span>
+                        <ArrowUpRight size={13} aria-hidden="true" />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="discovery-group">
+                  <div className="discovery-group-title">
+                    <Star size={13} aria-hidden="true" />
+                    <span>Popular repositories</span>
+                  </div>
+                  <div className="discovery-list">
+                    {featuredRepositories.map((repository) => (
+                      <button
+                        key={repository.fullName}
+                        type="button"
+                        onClick={() =>
+                          void loadTarget({
+                            owner: repository.fullName.split("/")[0],
+                            repository: repository.fullName,
+                            view: "popular",
+                            sourceLabel: "FEATURED REPOSITORY",
+                          })
+                        }
+                      >
+                        <span className="discovery-repo-mark">R</span>
+                        <span>
+                          <strong>{repository.name}</strong>
+                          <small>
+                            {repository.ownerName} · {repository.description}
+                          </small>
+                        </span>
+                        <ArrowUpRight size={13} aria-hidden="true" />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </section>
+          )}
+        </div>
 
         <div className="system-status">
           <span className="live-dot" />
