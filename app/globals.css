@@ -798,16 +798,16 @@ a:focus-visible {
   box-shadow: 0 0 8px rgba(100, 233, 255, 0.5);
 }
 
-.legend-activity {
+.legend-windows {
   background: linear-gradient(
     to bottom,
-    #67e8f9 0 33%,
-    #c084fc 33% 66%,
-    #fb7185 66% 100%
+    rgba(192, 166, 107, 0.72) 0 33%,
+    rgba(164, 139, 85, 0.58) 33% 66%,
+    rgba(128, 109, 70, 0.46) 66% 100%
   );
   box-shadow:
-    0 -5px 8px rgba(103, 232, 249, 0.35),
-    0 5px 8px rgba(251, 113, 133, 0.3);
+    0 -4px 7px rgba(192, 166, 107, 0.24),
+    0 5px 7px rgba(128, 109, 70, 0.16);
 }
 
 .legend-color {

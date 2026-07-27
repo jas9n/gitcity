@@ -633,10 +633,10 @@ export function GitCityExperience() {
           </p>
         </div>
         <div>
-          <span className="legend-line legend-activity" />
+          <span className="legend-line legend-windows" />
           <p>
-            <strong>DOTS</strong>
-            Commits · PRs · issues
+            <strong>WINDOWS</strong>
+            Stars · people · activity
           </p>
         </div>
         <div>
@@ -728,8 +728,15 @@ export function GitCityExperience() {
               <strong>{selected.levelCount} activity floors</strong>
             </div>
             <div className="profile-row">
-              <span>Activity dots</span>
-              <strong>{selected.activityDotCount}</strong>
+              <span>Windows</span>
+              <strong>{selected.windowRows} rows × 3</strong>
+            </div>
+            <div className="profile-row">
+              <span>Illumination</span>
+              <strong>
+                {Math.round(selected.brightness * 100)}% people ·{" "}
+                {Math.round(selected.illumination * 100)}% activity
+              </strong>
             </div>
             <div className="profile-row">
               <span>Rooftop beacon</span>
@@ -751,10 +758,11 @@ export function GitCityExperience() {
             <ArrowUpRight size={15} />
           </a>
           <p className="formula-note">
-            Height and façade dots reflect weighted 30-day activity. Dot colors
-            separate commits, merged pull requests, and issue work. Repository
-            size sets footprint, recent pushes power the beacon, and archived
-            projects stay dark.
+            Activity floors establish the window rows and stars can increase
+            their three-pane capacity. Contributors set potential occupancy,
+            while weighted 30-day activity controls how many panes illuminate
+            and how strongly they glow. Repository size sets footprint, recent
+            pushes power the beacon, and archived projects stay dark.
           </p>
         </aside>
       )}

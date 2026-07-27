@@ -49,37 +49,50 @@ type CityBounds = {
 };
 
 type SurfaceTone = "default" | "hovered" | "selected";
-type ActivityDotKind = "commits" | "pullRequests" | "issues";
+type WindowTone = "dark" | "low" | "medium" | "high";
 
-type ActivityDotSlot = {
+type WindowSlot = {
   building: CityBuilding;
-  dotIndex: number;
-  dotCount: number;
+  column: number;
+  row: number;
+  rows: number;
   side: number;
 };
 
-const ACTIVITY_DOT_COLORS: Record<ActivityDotKind, string> = {
-  commits: "#67e8f9",
-  pullRequests: "#c084fc",
-  issues: "#fb7185",
+const WINDOW_STYLES: Record<
+  WindowTone,
+  {
+    color: string;
+    emissive: string;
+    emissiveIntensity: number;
+    opacity: number;
+  }
+> = {
+  dark: {
+    color: "#25231e",
+    emissive: "#120f0a",
+    emissiveIntensity: 0.04,
+    opacity: 0.58,
+  },
+  low: {
+    color: "#806d46",
+    emissive: "#4d3b1d",
+    emissiveIntensity: 0.12,
+    opacity: 0.46,
+  },
+  medium: {
+    color: "#a48b55",
+    emissive: "#6a5225",
+    emissiveIntensity: 0.22,
+    opacity: 0.58,
+  },
+  high: {
+    color: "#c0a66b",
+    emissive: "#80652d",
+    emissiveIntensity: 0.34,
+    opacity: 0.72,
+  },
 };
-
-function activityDotKind(
-  building: CityBuilding,
-  dotIndex: number,
-  dotCount: number,
-): ActivityDotKind {
-  const commitWeight = building.commits30d;
-  const pullRequestWeight = building.mergedPullRequests30d * 3;
-  const issueWeight =
-    building.closedIssues30d * 2 + building.openedIssues30d;
-  const totalWeight = commitWeight + pullRequestWeight + issueWeight;
-  const sample = ((dotIndex + 0.5) / dotCount) * totalWeight;
-
-  if (sample < commitWeight) return "commits";
-  if (sample < commitWeight + pullRequestWeight) return "pullRequests";
-  return "issues";
-}
 
 function calculateBounds(buildings: CityBuilding[]): CityBounds {
   if (buildings.length === 0) {
@@ -284,49 +297,43 @@ function RooftopBeacons({
   ));
 }
 
-function ActivityDotBatch({
+function WindowPaneBatch({
   slots,
-  color,
+  tone,
 }: {
-  slots: ActivityDotSlot[];
-  color: string;
+  slots: WindowSlot[];
+  tone: WindowTone;
 }) {
-  const dots = useRef<InstancedMesh>(null);
+  const windows = useRef<InstancedMesh>(null);
   const dummy = useMemo(() => new Object3D(), []);
+  const style = WINDOW_STYLES[tone];
 
   useLayoutEffect(() => {
-    if (!dots.current) return;
+    if (!windows.current) return;
 
-    slots.forEach(({ building, dotCount, dotIndex, side }, index) => {
+    slots.forEach(({ building, column, row, rows, side }, index) => {
       const facadeWidth = side < 2 ? building.width : building.depth;
-      const seed = hashString(`${building.fullName}:${side}`);
-      const phaseX = (seed % 997) / 997;
-      const phaseY = ((seed >>> 10) % 991) / 991;
-      const horizontal =
-        ((phaseX + (dotIndex + 1) * 0.61803398875) % 1) - 0.5;
-      const vertical =
-        (phaseY + (dotIndex + 1) * 0.41421356237) % 1;
-      const lateral = horizontal * facadeWidth * 0.68;
-      const y =
-        0.48 + vertical * Math.max(0.18, building.height - 0.88);
+      const availableHeight = Math.max(0.34, building.height - 0.76);
+      const paneHeight = availableHeight / (rows * 2 - 1);
+      const occupiedHeight = (rows * 2 - 1) * paneHeight;
+      const firstPaneY =
+        0.42 + (availableHeight - occupiedHeight) / 2 + paneHeight / 2;
+      // Advancing by two pane heights leaves a vertical gap exactly one pane tall.
+      const y = firstPaneY + row * paneHeight * 2;
+      const paneWidth = Math.min(0.34, facadeWidth * 0.16);
+      const lateral = (column - 1) * paneWidth * 1.85;
       const localX =
         side < 2
           ? lateral
-          : (side === 2 ? 1 : -1) * (building.width / 2 + 0.028);
+          : (side === 2 ? 1 : -1) * (building.width / 2 + 0.024);
       const localZ =
         side < 2
-          ? (side === 0 ? 1 : -1) * (building.depth / 2 + 0.028)
+          ? (side === 0 ? 1 : -1) * (building.depth / 2 + 0.024)
           : lateral;
       const cosine = Math.cos(building.rotation);
       const sine = Math.sin(building.rotation);
       const offsetX = cosine * localX + sine * localZ;
       const offsetZ = -sine * localX + cosine * localZ;
-      const size =
-        0.045 +
-        (((hashString(`${building.fullName}:${side}:${dotIndex}`) >>> 18) %
-          100) /
-          100) *
-          0.025;
 
       dummy.position.set(
         building.position[0] + offsetX,
@@ -344,28 +351,31 @@ function ActivityDotBatch({
               : building.rotation - Math.PI / 2,
         0,
       );
-      dummy.scale.setScalar(size * (0.92 + dotCount / 225));
+      dummy.scale.set(paneWidth, paneHeight, 1);
       dummy.updateMatrix();
-      dots.current!.setMatrixAt(index, dummy.matrix);
+      windows.current!.setMatrixAt(index, dummy.matrix);
     });
 
-    dots.current.instanceMatrix.needsUpdate = true;
-    dots.current.computeBoundingSphere();
+    windows.current.instanceMatrix.needsUpdate = true;
+    windows.current.computeBoundingSphere();
   }, [dummy, slots]);
 
   return (
     <instancedMesh
-      ref={dots}
+      ref={windows}
       args={[undefined, undefined, slots.length]}
       raycast={() => null}
     >
-      <circleGeometry args={[1, 10]} />
-      <meshBasicMaterial
-        color={color}
+      <planeGeometry args={[1, 1]} />
+      <meshStandardMaterial
+        color={style.color}
+        emissive={style.emissive}
+        emissiveIntensity={style.emissiveIntensity}
         transparent
-        opacity={0.88}
+        opacity={style.opacity}
         depthWrite={false}
-        toneMapped={false}
+        metalness={0.08}
+        roughness={0.42}
       />
     </instancedMesh>
   );
@@ -382,31 +392,46 @@ function BuildingInstances({
   const bases = useRef<InstancedMesh>(null);
   const [hoveredInstance, setHoveredInstance] = useState<number | null>(null);
   const dummy = useMemo(() => new Object3D(), []);
-  const activityDotBatches = useMemo(() => {
-    const batches = new Map<ActivityDotKind, ActivityDotSlot[]>([
-      ["commits", []],
-      ["pullRequests", []],
-      ["issues", []],
+  const windowBatches = useMemo(() => {
+    const batches = new Map<WindowTone, WindowSlot[]>([
+      ["dark", []],
+      ["low", []],
+      ["medium", []],
+      ["high", []],
     ]);
 
     buildings.forEach((building) => {
-      if (building.archived || building.activityDotCount === 0) return;
-      const dotCount =
-        buildings.length > 500
-          ? Math.min(10, building.activityDotCount)
-          : buildings.length > 120
-            ? Math.min(14, building.activityDotCount)
-            : building.activityDotCount;
-
       for (let side = 0; side < 4; side += 1) {
-        for (let dotIndex = 0; dotIndex < dotCount; dotIndex += 1) {
-          const kind = activityDotKind(building, dotIndex, dotCount);
-          batches.get(kind)!.push({
-            building,
-            dotIndex,
-            dotCount,
-            side,
-          });
+        for (let row = 0; row < building.windowRows; row += 1) {
+          for (let column = 0; column < 3; column += 1) {
+            const seed = `${building.fullName}:${row}:${side}:${column}`;
+            const occupancySample = (hashString(seed) % 1000) / 1000;
+            const illuminationSample =
+              ((hashString(`${seed}:shade`) >>> 10) % 1000) / 1000;
+            const occupied =
+              !building.archived &&
+              building.illumination > 0 &&
+              ((row === 0 && column === 0) ||
+                occupancySample <
+                  building.brightness * building.illumination);
+            const strength =
+              building.illumination * (0.72 + illuminationSample * 0.28);
+            const tone: WindowTone = !occupied
+              ? "dark"
+              : strength >= 0.68
+                ? "high"
+                : strength >= 0.34
+                  ? "medium"
+                  : "low";
+
+            batches.get(tone)!.push({
+              building,
+              column,
+              row,
+              rows: building.windowRows,
+              side,
+            });
+          }
         }
       }
     });
@@ -548,11 +573,11 @@ function BuildingInstances({
 
       <RooftopBeacons buildings={buildings} reduceMotion={reduceMotion} />
 
-      {activityDotBatches.map(([kind, slots]) => (
-        <ActivityDotBatch
-          key={kind}
+      {windowBatches.map(([tone, slots]) => (
+        <WindowPaneBatch
+          key={tone}
           slots={slots}
-          color={ACTIVITY_DOT_COLORS[kind]}
+          tone={tone}
         />
       ))}
     </group>

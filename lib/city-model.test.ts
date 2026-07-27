@@ -112,11 +112,12 @@ describe("city model", () => {
     expect(languageColor("UncommonLang")).toBe("#7b858f");
   });
 
-  it("uses recent development activity for facade dot density", () => {
-    const city = buildCity([
+  it("uses stars, contributors, and activity as separate window signals", () => {
+    const starCity = buildCity([
       repo({
         id: 1,
-        fullName: "signals/inactive",
+        fullName: "signals/low-stars",
+        stars: 0,
         commits30d: 0,
         mergedPullRequests30d: 0,
         closedIssues30d: 0,
@@ -124,23 +125,54 @@ describe("city model", () => {
       }),
       repo({
         id: 2,
-        fullName: "signals/quiet",
-        commits30d: 1,
+        fullName: "signals/high-stars",
+        stars: 100_000,
+        commits30d: 0,
+        mergedPullRequests30d: 0,
+        closedIssues30d: 0,
+        openedIssues30d: 0,
+      }),
+    ]);
+    expect(starCity[1].windowRows).toBeGreaterThan(starCity[0].windowRows);
+    expect(starCity.every((building) => building.windowCount % 3 === 0)).toBe(
+      true,
+    );
+
+    const contributorCity = buildCity([
+      repo({
+        id: 3,
+        fullName: "signals/few-people",
+        contributorCount: 0,
+      }),
+      repo({
+        id: 4,
+        fullName: "signals/many-people",
+        contributorCount: 1_000,
+      }),
+    ]);
+    expect(contributorCity[1].brightness).toBeGreaterThan(
+      contributorCity[0].brightness,
+    );
+
+    const activityCity = buildCity([
+      repo({
+        id: 5,
+        fullName: "signals/inactive",
+        commits30d: 0,
         mergedPullRequests30d: 0,
         closedIssues30d: 0,
         openedIssues30d: 0,
       }),
       repo({
-        id: 3,
+        id: 6,
         fullName: "signals/busy",
         commits30d: 200,
       }),
     ]);
-
-    expect(city[0].activityDotCount).toBe(0);
-    expect(city[1].activityDotCount).toBeGreaterThan(0);
-    expect(city[2].activityDotCount).toBeGreaterThan(
-      city[1].activityDotCount,
+    expect(activityCity[0].windowRows).toBeGreaterThanOrEqual(4);
+    expect(activityCity[0].illumination).toBe(0);
+    expect(activityCity[1].illumination).toBeGreaterThan(
+      activityCity[0].illumination,
     );
   });
 
@@ -187,7 +219,9 @@ describe("city model", () => {
 
     expect(city[1].width).toBeGreaterThan(city[0].width);
     expect(city[1].depth).toBeGreaterThan(city[0].depth);
-    expect(city[2].activityDotCount).toBe(0);
+    expect(city[2].brightness).toBe(0);
+    expect(city[2].illumination).toBe(0);
+    expect(city[2].windowCount).toBeGreaterThan(0);
     expect(city[2].height).toBe(1.4);
   });
 });
