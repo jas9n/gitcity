@@ -198,11 +198,11 @@ export function buildCity(
       1,
     );
     const sizeNormalized = clamp(Math.log1p(repo.sizeKb) / sizeCeiling, 0, 1);
-    const height = repo.archived ? 1.4 : 2.2 + activityNormalized * 15.8;
+    const height = repo.archived ? 1.4 : 2.2 + activityNormalized * 24.2;
     const width = 1.8 + Math.sqrt(sizeNormalized) * 1.35;
     const levelCount = Math.max(
       4,
-      Math.min(24, Math.round(height / 0.75)),
+      Math.min(32, Math.round(height / 0.82)),
     );
     const activityWindowRows = height < 3.2 ? 3 : levelCount;
     const starWindowRows = Math.max(
@@ -222,11 +222,11 @@ export function buildCity(
       ? 0
       : clamp(1 - daysSincePush / 30, 0, 1);
     const tier: BuildingTier =
-      height > 15
+      height > 24
         ? "landmark"
-        : height > 10
+        : height > 15
           ? "tower"
-          : height > 5.5
+          : height > 7.5
             ? "mid-rise"
             : "low-rise";
     const placement = placements.get(repo.id) ?? {

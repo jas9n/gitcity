@@ -46,6 +46,7 @@ type CityBounds = {
   width: number;
   depth: number;
   radius: number;
+  height: number;
 };
 
 type SurfaceTone = "default" | "hovered" | "selected";
@@ -96,18 +97,26 @@ const WINDOW_STYLES: Record<
 
 function calculateBounds(buildings: CityBuilding[]): CityBounds {
   if (buildings.length === 0) {
-    return { center: [0, 0, 0], width: 88, depth: 72, radius: 44 };
+    return {
+      center: [0, 0, 0],
+      width: 88,
+      depth: 72,
+      radius: 44,
+      height: 18,
+    };
   }
 
   let minX = Infinity;
   let maxX = -Infinity;
   let minZ = Infinity;
   let maxZ = -Infinity;
+  let maxHeight = 0;
   buildings.forEach((building) => {
     minX = Math.min(minX, building.position[0] - building.width / 2);
     maxX = Math.max(maxX, building.position[0] + building.width / 2);
     minZ = Math.min(minZ, building.position[2] - building.depth / 2);
     maxZ = Math.max(maxZ, building.position[2] + building.depth / 2);
+    maxHeight = Math.max(maxHeight, building.height);
   });
 
   const width = Math.max(88, maxX - minX + 28);
@@ -117,6 +126,7 @@ function calculateBounds(buildings: CityBuilding[]): CityBounds {
     width,
     depth,
     radius: Math.max(width, depth) / 2,
+    height: maxHeight,
   };
 }
 
@@ -638,7 +648,15 @@ function Scene({
   reduceMotion,
 }: CitySceneProps) {
   const bounds = useMemo(() => calculateBounds(buildings), [buildings]);
-  const maxDistance = Math.max(58, bounds.radius * 1.6);
+  const maxDistance = Math.max(
+    58,
+    bounds.radius * 1.6,
+    bounds.height * 2.2,
+  );
+  const verticalTarget = Math.max(
+    4.8,
+    Math.min(9.5, bounds.height * 0.32),
+  );
 
   return (
     <>
@@ -650,7 +668,7 @@ function Scene({
       <ambientLight intensity={0.72} color="#83b5d8" />
       <hemisphereLight args={["#75baff", "#06101a", 1.05]} />
       <directionalLight
-        position={[15, 24, 12]}
+        position={[15, Math.max(24, bounds.height * 1.05), 12]}
         intensity={1.4}
         color="#b9d8ff"
         castShadow={buildings.length <= 450}
@@ -669,12 +687,20 @@ function Scene({
       />
       <Sparkles
         count={Math.min(180, 70 + Math.floor(buildings.length / 12))}
-        scale={[bounds.width * 0.72, 18, bounds.depth * 0.72]}
+        scale={[
+          bounds.width * 0.72,
+          Math.max(18, bounds.height * 1.05),
+          bounds.depth * 0.72,
+        ]}
         size={1.1}
         speed={reduceMotion ? 0 : 0.16}
         opacity={0.2}
         color="#6edfff"
-        position={[bounds.center[0], 8, bounds.center[2]]}
+        position={[
+          bounds.center[0],
+          Math.max(8, bounds.height * 0.42),
+          bounds.center[2],
+        ]}
       />
 
       <group onClick={() => onHover(null)}>
@@ -715,7 +741,7 @@ function Scene({
 
       <OrbitControls
         makeDefault
-        target={[bounds.center[0], 4.8, bounds.center[2]]}
+        target={[bounds.center[0], verticalTarget, bounds.center[2]]}
         minDistance={15}
         maxDistance={maxDistance}
         minPolarAngle={0.55}
@@ -744,7 +770,7 @@ export function CityScene(props: CitySceneProps) {
   return (
     <Canvas
       dpr={[1, 1.7]}
-      camera={{ position: [26, 22, 31], fov: 43, near: 0.1, far: 2000 }}
+      camera={{ position: [31, 29, 38], fov: 45, near: 0.1, far: 2000 }}
       gl={{ antialias: true, powerPreference: "high-performance" }}
       shadows
       onCreated={({ scene }) => {

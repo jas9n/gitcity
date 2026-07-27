@@ -39,8 +39,11 @@ Use the rolling 30-day activity score:
 
 Height and visible floor rows use logarithmic activity scaling normalized
 against the city’s 95th percentile so one highly active repository does not
-flatten the rest of the skyline. Use a dense 4–24-row scale in normal cities;
+flatten the rest of the skyline. Stretch active buildings proportionally toward
+an approximately 30-unit visual ceiling and use a dense 4–32-floor scale;
 large-city modes may cap rows for performance but should remain visibly dense.
+Camera targeting, vertical effects, and orbit distance must respond to the
+tallest visible building so the expanded skyline remains framed.
 
 Render exactly three individual panes per row on every façade. Activity floors
 provide the baseline row count and stars can increase that capacity, with a

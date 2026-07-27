@@ -48,7 +48,10 @@ describe("city model", () => {
       repo({ id: 2, fullName: "x/busy", commits30d: 2000 }),
     ]);
     expect(city[1].height).toBeLessThan(city[0].height * 6);
+    expect(city[1].height).toBeGreaterThan(25);
+    expect(city[1].height).toBeLessThanOrEqual(31);
     expect(city[1].levelCount).toBeGreaterThan(city[0].levelCount);
+    expect(city[1].levelCount).toBeLessThanOrEqual(32);
     expect(city.every((building) => Number.isFinite(building.height))).toBe(true);
   });
 
