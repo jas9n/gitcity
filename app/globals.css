@@ -216,6 +216,16 @@ a:focus-visible {
   color: #7b92a6;
 }
 
+.owner-avatar {
+  width: 17px;
+  height: 17px;
+  border: 1px solid rgba(111, 226, 248, 0.3);
+  border-radius: 50%;
+  background: #08121d;
+  background-position: center;
+  background-size: cover;
+}
+
 .discovery-trigger {
   height: 30px;
   display: inline-flex;
@@ -716,6 +726,18 @@ a:focus-visible {
   font-family: var(--font-geist-mono), monospace;
   font-size: 8px;
   white-space: nowrap;
+}
+
+.result-count.streaming::before {
+  content: "";
+  width: 5px;
+  height: 5px;
+  display: inline-block;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: var(--cyan);
+  box-shadow: 0 0 9px rgba(101, 229, 255, 0.65);
+  animation: status-pulse 1.2s ease-in-out infinite;
 }
 
 .interaction-hint {

@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { featuredOrganizations, featuredRepositories } from "./discovery";
+import {
+  featuredOrganizations,
+  featuredRepositories,
+  isCachedExploreTarget,
+} from "./discovery";
 
 const OWNER_PATTERN = /^[a-z\d](?:[a-z\d-]{0,37}[a-z\d])?$/i;
 const REPOSITORY_PATTERN = /^[a-z\d](?:[a-z\d-]{0,37}[a-z\d])?\/[a-z\d._-]{1,100}$/i;
@@ -15,5 +19,22 @@ describe("discovery catalog", () => {
     const repositories = featuredRepositories.map((item) => item.fullName);
     expect(new Set(repositories).size).toBe(repositories.length);
     expect(repositories.every((repo) => REPOSITORY_PATTERN.test(repo))).toBe(true);
+  });
+
+  it("marks every Explore option for durable caching", () => {
+    expect(
+      featuredOrganizations.every((item) =>
+        isCachedExploreTarget(item.owner),
+      ),
+    ).toBe(true);
+    expect(
+      featuredRepositories.every((item) =>
+        isCachedExploreTarget(
+          item.fullName.split("/")[0],
+          item.fullName,
+        ),
+      ),
+    ).toBe(true);
+    expect(isCachedExploreTarget("unlisted-owner")).toBe(false);
   });
 });

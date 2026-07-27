@@ -64,4 +64,28 @@ describe("city model", () => {
     );
     expect(hashString("x/a")).toBe(hashString("x/a"));
   });
+
+  it("lays out large cities with finite, distributed coordinates", () => {
+    const city = buildCity(
+      Array.from({ length: 1_000 }, (_, index) =>
+        repo({
+          id: index,
+          fullName: `large/repository-${index}`,
+          name: `repository-${index}`,
+          language: ["TypeScript", "Python", "Go", "Rust"][index % 4],
+        }),
+      ),
+    );
+    const coordinates = new Set(
+      city.map((building) => building.position.join(",")),
+    );
+
+    expect(city).toHaveLength(1_000);
+    expect(coordinates.size).toBe(1_000);
+    expect(
+      city.every((building) =>
+        building.position.every((coordinate) => Number.isFinite(coordinate)),
+      ),
+    ).toBe(true);
+  });
 });

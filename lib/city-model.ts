@@ -18,6 +18,7 @@ export type RepositorySignal = {
   closedIssues30d: number;
   openedIssues30d: number;
   contributorCount: number;
+  metricsEstimated?: boolean;
 };
 
 export type BuildingTier = "low-rise" | "mid-rise" | "tower" | "landmark";
@@ -99,24 +100,6 @@ export function languageColor(language: string): string {
   return LANGUAGE_COLORS[language] ?? LANGUAGE_COLORS.Other;
 }
 
-function districtOrigins(languages: string[]) {
-  const columns = Math.ceil(Math.sqrt(languages.length));
-  const spacing = 16;
-  return new Map(
-    languages.map((language, index) => {
-      const column = index % columns;
-      const row = Math.floor(index / columns);
-      return [
-        language,
-        [
-          (column - (columns - 1) / 2) * spacing,
-          (row - (Math.ceil(languages.length / columns) - 1) / 2) * spacing,
-        ] as const,
-      ];
-    }),
-  );
-}
-
 function createLayout(repositories: RepositorySignal[]) {
   const groups = new Map<string, RepositorySignal[]>();
   repositories.forEach((repo) => {
@@ -130,7 +113,27 @@ function createLayout(repositories: RepositorySignal[]) {
     const sizeDelta = (groups.get(b)?.length ?? 0) - (groups.get(a)?.length ?? 0);
     return sizeDelta || a.localeCompare(b);
   });
-  const origins = districtOrigins(languages);
+  const largestDistrict = Math.max(
+    1,
+    ...languages.map((language) => groups.get(language)?.length ?? 0),
+  );
+  const districtFootprint =
+    Math.ceil(Math.sqrt(largestDistrict)) * 4.7 + 11;
+  const columns = Math.ceil(Math.sqrt(languages.length));
+  const rows = Math.ceil(languages.length / columns);
+  const origins = new Map(
+    languages.map((language, index) => {
+      const column = index % columns;
+      const row = Math.floor(index / columns);
+      return [
+        language,
+        [
+          (column - (columns - 1) / 2) * districtFootprint,
+          (row - (rows - 1) / 2) * districtFootprint,
+        ] as const,
+      ];
+    }),
+  );
   const placements = new Map<
     RepositorySignal["id"],
     { position: [number, number, number]; rotation: number }

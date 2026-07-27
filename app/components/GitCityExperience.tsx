@@ -62,6 +62,18 @@ type CityTarget = {
   sourceLabel?: string;
 };
 
+type GitHubPagePayload = {
+  error?: string;
+  owner: string;
+  ownerType: "organization" | "user";
+  ownerAvatarUrl: string | null;
+  repositories: RepositorySignal[];
+  page: number;
+  hasMore: boolean;
+  totalRepositories: number | null;
+  focusedRepository: string | null;
+};
+
 const formatNumber = (value: number) =>
   new Intl.NumberFormat("en", {
     notation: value >= 10_000 ? "compact" : "standard",
@@ -91,10 +103,15 @@ export function GitCityExperience() {
   const [selectedId, setSelectedId] = useState<CityBuilding["id"] | null>(null);
   const [hoveredId, setHoveredId] = useState<CityBuilding["id"] | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [repositoryTotal, setRepositoryTotal] = useState(demoRepositories.length);
+  const [ownerAvatarUrl, setOwnerAvatarUrl] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [reduceMotion, setReduceMotion] = useState(false);
   const [discoveryOpen, setDiscoveryOpen] = useState(false);
   const searchHubRef = useRef<HTMLDivElement>(null);
+  const loadGenerationRef = useRef(0);
+  const loadAbortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     const query = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -165,32 +182,38 @@ export function GitCityExperience() {
     target: CityTarget,
     historyMode: HistoryMode = "push",
   ) => {
+    const generation = loadGenerationRef.current + 1;
+    loadGenerationRef.current = generation;
+    loadAbortRef.current?.abort();
+    const controller = new AbortController();
+    loadAbortRef.current = controller;
     setIsLoading(true);
+    setIsStreaming(false);
     setError("");
     setSelectedId(null);
     setHoveredId(null);
     setDiscoveryOpen(false);
 
     try {
-      const query = new URLSearchParams({ owner: target.owner });
+      const query = new URLSearchParams({ owner: target.owner, page: "1" });
       if (target.view) query.set("view", target.view);
       if (target.repository) query.set("repo", target.repository);
-      const response = await fetch(`/api/github?${query.toString()}`);
-      const payload = (await response.json()) as {
-        error?: string;
-        owner?: string;
-        ownerType?: string;
-        repositories?: RepositorySignal[];
-        focusedRepository?: string | null;
-      };
+      const response = await fetch(`/api/github?${query.toString()}`, {
+        signal: controller.signal,
+      });
+      const payload = (await response.json()) as GitHubPagePayload;
       if (!response.ok || !payload.repositories) {
         throw new Error(payload.error ?? "This city could not be loaded.");
       }
+      if (generation !== loadGenerationRef.current) return;
       if (payload.repositories.length === 0) {
         throw new Error("No public, original repositories were found for that owner.");
       }
-      setRepositories(payload.repositories);
+      let collected = payload.repositories;
+      setRepositories(collected);
       setOwner(payload.owner ?? target.owner);
+      setOwnerAvatarUrl(payload.ownerAvatarUrl);
+      setRepositoryTotal(payload.totalRepositories ?? collected.length);
       setCityName(
         (payload.owner ?? target.owner).replace(/-/g, " ").toUpperCase(),
       );
@@ -220,14 +243,51 @@ export function GitCityExperience() {
         }
         window.history.pushState(null, "", `${url.pathname}${url.search}`);
       }
+
+      setIsLoading(false);
+      setIsStreaming(payload.hasMore);
+
+      let nextPage = 2;
+      let hasMore = payload.hasMore;
+      while (hasMore && generation === loadGenerationRef.current) {
+        const pageQuery = new URLSearchParams({
+          owner: payload.owner ?? target.owner,
+          ownerType: payload.ownerType,
+          page: String(nextPage),
+        });
+        if (target.view) pageQuery.set("view", target.view);
+        const pageResponse = await fetch(
+          `/api/github?${pageQuery.toString()}`,
+          { signal: controller.signal },
+        );
+        const pagePayload = (await pageResponse.json()) as GitHubPagePayload;
+        if (!pageResponse.ok || !pagePayload.repositories) {
+          throw new Error(
+            pagePayload.error ?? "The rest of this city could not be loaded.",
+          );
+        }
+        if (generation !== loadGenerationRef.current) return;
+
+        const byId = new Map(collected.map((repo) => [repo.id, repo]));
+        pagePayload.repositories.forEach((repo) => byId.set(repo.id, repo));
+        collected = [...byId.values()];
+        setRepositories(collected);
+        setRepositoryTotal((total) => Math.max(total, collected.length));
+        hasMore = pagePayload.hasMore;
+        nextPage += 1;
+      }
     } catch (caught) {
+      if (controller.signal.aborted) return;
       setError(
         caught instanceof Error
           ? caught.message
           : "GitHub is temporarily unreachable.",
       );
     } finally {
-      setIsLoading(false);
+      if (generation === loadGenerationRef.current) {
+        setIsLoading(false);
+        setIsStreaming(false);
+      }
     }
   }, []);
 
@@ -239,8 +299,14 @@ export function GitCityExperience() {
   }
 
   const restoreDemo = useCallback((historyMode: HistoryMode = "push") => {
+    loadGenerationRef.current += 1;
+    loadAbortRef.current?.abort();
     setRepositories(demoRepositories);
     setOwner("");
+    setOwnerAvatarUrl(null);
+    setRepositoryTotal(demoRepositories.length);
+    setIsLoading(false);
+    setIsStreaming(false);
     setCityName("OPEN CITY LABS");
     setSourceLabel("CURATED DEMO");
     setFilter("all");
@@ -253,6 +319,38 @@ export function GitCityExperience() {
       window.history.pushState(null, "", window.location.pathname);
     }
   }, []);
+
+  useEffect(() => {
+    if (!selected?.metricsEstimated) return;
+    const controller = new AbortController();
+    const repositoryId = selected.id;
+
+    void (async () => {
+      try {
+        const query = new URLSearchParams({
+          owner: selected.fullName.split("/")[0],
+          repo: selected.fullName,
+          detail: "1",
+        });
+        const response = await fetch(`/api/github?${query.toString()}`, {
+          signal: controller.signal,
+        });
+        const payload = (await response.json()) as {
+          repository?: RepositorySignal;
+        };
+        if (!response.ok || !payload.repository) return;
+        setRepositories((current) =>
+          current.map((repo) =>
+            repo.id === repositoryId ? payload.repository! : repo,
+          ),
+        );
+      } catch {
+        // Estimated metrics remain useful when detailed enrichment is unavailable.
+      }
+    })();
+
+    return () => controller.abort();
+  }, [selected?.fullName, selected?.id, selected?.metricsEstimated]);
 
   useEffect(() => {
     const loadFromLocation = () => {
@@ -339,14 +437,25 @@ export function GitCityExperience() {
               />
             </button>
             <span className="search-divider" aria-hidden="true" />
-            <GitFork size={15} aria-hidden="true" />
+            {ownerAvatarUrl ? (
+              <span
+                className="owner-avatar"
+                style={{ backgroundImage: `url("${ownerAvatarUrl}")` }}
+                aria-hidden="true"
+              />
+            ) : (
+              <GitFork size={15} aria-hidden="true" />
+            )}
             <label className="sr-only" htmlFor="github-owner">
               GitHub username or organization
             </label>
             <input
               id="github-owner"
               value={owner}
-              onChange={(event) => setOwner(event.target.value)}
+              onChange={(event) => {
+                setOwner(event.target.value);
+                setOwnerAvatarUrl(null);
+              }}
               placeholder="username or organization"
               autoComplete="off"
               spellCheck={false}
@@ -454,7 +563,13 @@ export function GitCityExperience() {
         <div className="eyebrow">
           <span>{sourceLabel}</span>
           <span className="eyebrow-rule" />
-          <span>{repositories.length.toString().padStart(2, "0")} REPOSITORIES</span>
+          <span>
+            {repositories.length.toLocaleString()}
+            {isStreaming && repositoryTotal > repositories.length
+              ? ` / ${repositoryTotal.toLocaleString()}`
+              : ""}{" "}
+            REPOSITORIES
+          </span>
         </div>
         <h1 id="city-title">{cityName}</h1>
         <p>
@@ -471,7 +586,11 @@ export function GitCityExperience() {
         <Metric
           icon={<GitCommitHorizontal size={16} />}
           value={formatNumber(summary.totalCommits30d)}
-          label="Commits / 30d"
+          label={
+            repositories.some((repo) => repo.metricsEstimated)
+              ? "Activity signal"
+              : "Commits / 30d"
+          }
           accent="#63e7ff"
         />
         <Metric
@@ -526,7 +645,11 @@ export function GitCityExperience() {
             ))}
           </select>
         </label>
-        <span className="result-count">{buildings.length} visible</span>
+        <span className={`result-count ${isStreaming ? "streaming" : ""}`}>
+          {isStreaming
+            ? `${repositories.length.toLocaleString()} loaded`
+            : `${buildings.length.toLocaleString()} visible`}
+        </span>
       </nav>
 
       <div className="interaction-hint">
@@ -591,8 +714,22 @@ export function GitCityExperience() {
           <p className="panel-description">{selected.description}</p>
 
           <div className="panel-stats">
-            <PanelStat label="Activity score" value={selected.activityScore} />
-            <PanelStat label="Commits / 30d" value={selected.commits30d} />
+            <PanelStat
+              label={
+                selected.metricsEstimated
+                  ? "Estimated activity"
+                  : "Activity score"
+              }
+              value={selected.activityScore}
+            />
+            <PanelStat
+              label={
+                selected.metricsEstimated
+                  ? "Estimated commits"
+                  : "Commits / 30d"
+              }
+              value={selected.commits30d}
+            />
             <PanelStat label="Stars" value={formatNumber(selected.stars)} />
             <PanelStat label="Contributors" value={selected.contributorCount} />
           </div>

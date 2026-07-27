@@ -113,3 +113,21 @@ export const featuredRepositories: FeaturedRepository[] = [
     description: "An open source development platform.",
   },
 ];
+
+const cachedOwners = new Set([
+  ...featuredOrganizations.map((item) => item.owner.toLowerCase()),
+  ...featuredRepositories.map((item) =>
+    item.fullName.split("/")[0].toLowerCase(),
+  ),
+]);
+
+const cachedRepositories = new Set(
+  featuredRepositories.map((item) => item.fullName.toLowerCase()),
+);
+
+export function isCachedExploreTarget(owner: string, repository?: string) {
+  return (
+    cachedOwners.has(owner.toLowerCase()) ||
+    (repository ? cachedRepositories.has(repository.toLowerCase()) : false)
+  );
+}

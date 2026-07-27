@@ -273,4 +273,9 @@ export const demoRepositories: RepositorySignal[] = seeds.map((seed, index) => (
   closedIssues30d: seed.closedIssues30d ?? 0,
   openedIssues30d: seed.openedIssues30d ?? 0,
   contributorCount: seed.contributorCount,
+  metricsEstimated: false,
 }));
+
+// The demo is an immutable, build-cached snapshot and never requires GitHub.
+demoRepositories.forEach(Object.freeze);
+Object.freeze(demoRepositories);
