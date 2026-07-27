@@ -48,7 +48,6 @@ type CityBounds = {
   radius: number;
 };
 
-type SurfaceTone = "default" | "hovered" | "selected";
 type WindowTone = "dark" | "low" | "medium" | "high";
 
 type WindowSlot = {
@@ -123,33 +122,32 @@ function calculateBounds(buildings: CityBuilding[]): CityBounds {
 function BuildingSurfaceBatch({
   buildings,
   color,
-  tone,
+  hoveredId,
+  selectedId,
 }: {
   buildings: CityBuilding[];
   color: string;
-  tone: SurfaceTone;
+  hoveredId: CityBuilding["id"] | null;
+  selectedId: CityBuilding["id"] | null;
 }) {
   const surfaces = useRef<InstancedMesh>(null);
   const roofs = useRef<InstancedMesh>(null);
   const dummy = useMemo(() => new Object3D(), []);
-  const displayColor = useMemo(
-    () => {
-      const languageColor = new Color(color);
-      if (tone === "selected") {
-        return languageColor.lerp(new Color("#e4f5ff"), 0.12);
-      }
-      return languageColor.lerp(
-        new Color("#05080b"),
-        tone === "hovered" ? 0.46 : 0.24,
-      );
-    },
-    [color, tone],
-  );
+  const languageColor = useMemo(() => new Color(color), [color]);
+  const shadowColor = useMemo(() => new Color("#05080b"), []);
+  const selectionColor = useMemo(() => new Color("#e4f5ff"), []);
 
   useLayoutEffect(() => {
     if (!surfaces.current || !roofs.current) return;
     buildings.forEach((building, index) => {
       const emphasis = 1.002;
+      const instanceColor =
+        building.id === selectedId
+          ? languageColor.clone().lerp(selectionColor, 0.12)
+          : languageColor
+              .clone()
+              .lerp(shadowColor, building.id === hoveredId ? 0.46 : 0.24);
+
       dummy.position.set(
         building.position[0],
         building.height / 2,
@@ -163,6 +161,7 @@ function BuildingSurfaceBatch({
       );
       dummy.updateMatrix();
       surfaces.current!.setMatrixAt(index, dummy.matrix);
+      surfaces.current!.setColorAt(index, instanceColor);
 
       dummy.position.set(
         building.position[0],
@@ -176,12 +175,27 @@ function BuildingSurfaceBatch({
       );
       dummy.updateMatrix();
       roofs.current!.setMatrixAt(index, dummy.matrix);
+      roofs.current!.setColorAt(index, instanceColor);
     });
     surfaces.current.instanceMatrix.needsUpdate = true;
     roofs.current.instanceMatrix.needsUpdate = true;
+    if (surfaces.current.instanceColor) {
+      surfaces.current.instanceColor.needsUpdate = true;
+    }
+    if (roofs.current.instanceColor) {
+      roofs.current.instanceColor.needsUpdate = true;
+    }
     surfaces.current.computeBoundingSphere();
     roofs.current.computeBoundingSphere();
-  }, [buildings, dummy]);
+  }, [
+    buildings,
+    dummy,
+    hoveredId,
+    languageColor,
+    selectedId,
+    selectionColor,
+    shadowColor,
+  ]);
 
   return (
     <>
@@ -192,7 +206,8 @@ function BuildingSurfaceBatch({
       >
         <boxGeometry args={[1, 1, 1]} />
         <meshBasicMaterial
-          color={displayColor}
+          color="#ffffff"
+          vertexColors
           polygonOffset
           polygonOffsetFactor={-1}
           polygonOffsetUnits={-1}
@@ -205,7 +220,7 @@ function BuildingSurfaceBatch({
         raycast={() => null}
       >
         <boxGeometry args={[1, 1, 1]} />
-        <meshBasicMaterial color={displayColor} toneMapped={false} />
+        <meshBasicMaterial color="#ffffff" vertexColors toneMapped={false} />
       </instancedMesh>
     </>
   );
@@ -444,23 +459,16 @@ function BuildingInstances({
   const languageBatches = useMemo(() => {
     const batches = new Map<
       string,
-      { color: string; tone: SurfaceTone; buildings: CityBuilding[] }
+      { color: string; buildings: CityBuilding[] }
     >();
     buildings.forEach((building) => {
       const color = building.archived ? "#252b30" : building.accent;
-      const tone: SurfaceTone =
-        building.id === selectedId
-          ? "selected"
-          : building.id === hoveredId
-            ? "hovered"
-            : "default";
-      const key = `${color}:${tone}`;
-      const batch = batches.get(key) ?? { color, tone, buildings: [] };
+      const batch = batches.get(color) ?? { color, buildings: [] };
       batch.buildings.push(building);
-      batches.set(key, batch);
+      batches.set(color, batch);
     });
     return [...batches.values()];
-  }, [buildings, hoveredId, selectedId]);
+  }, [buildings]);
 
   useLayoutEffect(() => {
     if (!bodies.current || !bases.current) return;
@@ -550,10 +558,11 @@ function BuildingInstances({
 
       {languageBatches.map((batch) => (
         <BuildingSurfaceBatch
-          key={`${batch.color}:${batch.tone}`}
+          key={batch.color}
           buildings={batch.buildings}
           color={batch.color}
-          tone={batch.tone}
+          hoveredId={hoveredId}
+          selectedId={selectedId}
         />
       ))}
 
