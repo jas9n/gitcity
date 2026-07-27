@@ -25,12 +25,11 @@ export type BuildingTier = "low-rise" | "mid-rise" | "tower" | "landmark";
 
 export type CityBuilding = RepositorySignal & {
   activityScore: number;
+  activityDotCount: number;
   height: number;
   width: number;
   depth: number;
-  brightness: number;
   levelCount: number;
-  windowCount: number;
   recentActivity: number;
   tier: BuildingTier;
   accent: string;
@@ -169,17 +168,6 @@ export function buildCity(
 
   const scores = repositories.map(activityScore);
   const activityCeiling = Math.max(1, percentile(scores.map(Math.log1p), 0.95));
-  const starCeiling = Math.max(
-    1,
-    percentile(repositories.map((repo) => Math.log1p(repo.stars)), 0.95),
-  );
-  const contributorCeiling = Math.max(
-    1,
-    percentile(
-      repositories.map((repo) => Math.log1p(repo.contributorCount)),
-      0.95,
-    ),
-  );
   const sizeCeiling = Math.max(
     1,
     percentile(repositories.map((repo) => Math.log1p(repo.sizeKb)), 0.9),
@@ -189,16 +177,13 @@ export function buildCity(
   return repositories.map((repo) => {
     const score = activityScore(repo);
     const activityNormalized = clamp(Math.log1p(score) / activityCeiling, 0, 1.15);
-    const starsNormalized = clamp(Math.log1p(repo.stars) / starCeiling, 0, 1);
-    const contributorsNormalized = clamp(
-      Math.log1p(repo.contributorCount) / contributorCeiling,
-      0,
-      1,
-    );
     const sizeNormalized = clamp(Math.log1p(repo.sizeKb) / sizeCeiling, 0, 1);
     const height = repo.archived ? 1.4 : 2.2 + activityNormalized * 15.8;
     const width = 1.8 + Math.sqrt(sizeNormalized) * 1.35;
-    const brightness = repo.archived ? 0 : contributorsNormalized;
+    const activityDotCount =
+      score === 0
+        ? 0
+        : Math.max(1, Math.min(18, Math.round(1 + activityNormalized * 17)));
     const pushedTime = new Date(repo.pushedAt).getTime();
     const daysSincePush = Number.isFinite(pushedTime)
       ? Math.max(0, (referenceTime - pushedTime) / 86_400_000)
@@ -222,12 +207,11 @@ export function buildCity(
     return {
       ...repo,
       activityScore: score,
+      activityDotCount,
       height,
       width,
       depth: width * (0.8 + ((hashString(repo.name) >> 4) % 18) / 100),
-      brightness,
       levelCount: Math.max(4, Math.min(24, Math.round(height / 0.75))),
-      windowCount: Math.round(4 + starsNormalized * 20),
       recentActivity,
       tier,
       accent: languageColor(repo.language),

@@ -18,16 +18,14 @@ development activity shapes the skyline.
 
 | Repository signal | City representation |
 | --- | --- |
-| Recent commits, merged PRs, and closed/opened issues | Building height |
-| Stars | Potential window count/density |
-| Active contributors | Percentage of windows occupied/lit |
+| Recent commits, merged PRs, and closed/opened issues | Building height and façade activity dots |
 | Very recent activity | Rooftop beacon or pulse |
 | Primary language | Building material/accent color |
 | Repository size | Building footprint |
 | Archived repository | Darkened, inactive building |
 
-Keep these visual signals separate: popularity controls lighting capacity,
-people create occupancy, and activity creates height.
+Stars and contributor totals remain available as repository details, but do not
+control façade lighting or geometry.
 
 Do not add separate repository-age, fork, or owner/team geometry. The selected
 owner already represents the entire city.
@@ -41,12 +39,11 @@ against the city’s 95th percentile so one highly active repository does not
 flatten the rest of the skyline. Use a dense 4–24-row scale in normal cities;
 large-city modes may cap rows for performance but should remain visibly dense.
 
-Lighting keeps popularity and people separate: logarithmic/normalized stars
-set the number of panes per row, while normalized active contributors set the
-percentage of those windows currently lit. Keep unlit panes visible, and give
-each active, non-archived building one baseline lit pane per façade. Render
-windows as individual façade panes, not continuous horizontal bands, with at
-least three panes per visible row.
+Do not render solid illuminated windows. Use small, crisp façade dots to show
+rolling 30-day activity: cyan for commits, violet for merged pull requests, and
+coral for issue work. Dot density follows the logarithmically normalized
+activity score, inactive and archived repositories have no dots, and the dot
+layout must remain deterministic and unchanged during hover.
 
 ## Color direction
 
@@ -54,8 +51,8 @@ Use recognizable core colors for common languages (for example TypeScript,
 JavaScript, Python, Go, Rust, Java, Ruby, Swift, Kotlin, C/C++, C#, PHP, Shell,
 HTML, and CSS). Languages outside the curated common palette use a consistent
 neutral gray. Roofs share their building color, hover uses a darker version of
-that same color without changing building geometry or covering windows, and
-archived repositories remain visibly subdued.
+that same color without changing building geometry or covering activity dots,
+and archived repositories remain visibly subdued.
 
 ## Experience and architecture
 

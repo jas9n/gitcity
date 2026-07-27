@@ -798,9 +798,16 @@ a:focus-visible {
   box-shadow: 0 0 8px rgba(100, 233, 255, 0.5);
 }
 
-.legend-light {
-  background: var(--gold);
-  box-shadow: 0 0 8px rgba(255, 201, 106, 0.5);
+.legend-activity {
+  background: linear-gradient(
+    to bottom,
+    #67e8f9 0 33%,
+    #c084fc 33% 66%,
+    #fb7185 66% 100%
+  );
+  box-shadow:
+    0 -5px 8px rgba(103, 232, 249, 0.35),
+    0 5px 8px rgba(251, 113, 133, 0.3);
 }
 
 .legend-color {

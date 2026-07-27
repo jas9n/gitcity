@@ -633,10 +633,10 @@ export function GitCityExperience() {
           </p>
         </div>
         <div>
-          <span className="legend-line legend-light" />
+          <span className="legend-line legend-activity" />
           <p>
-            <strong>WINDOWS</strong>
-            Stars · people lit
+            <strong>DOTS</strong>
+            Commits · PRs · issues
           </p>
         </div>
         <div>
@@ -728,10 +728,8 @@ export function GitCityExperience() {
               <strong>{selected.levelCount} activity floors</strong>
             </div>
             <div className="profile-row">
-              <span>Windows</span>
-              <strong>
-                {selected.windowCount} · {Math.round(selected.brightness * 100)}% lit
-              </strong>
+              <span>Activity dots</span>
+              <strong>{selected.activityDotCount}</strong>
             </div>
             <div className="profile-row">
               <span>Rooftop beacon</span>
@@ -753,9 +751,10 @@ export function GitCityExperience() {
             <ArrowUpRight size={15} />
           </a>
           <p className="formula-note">
-            Height reflects weighted activity; stars set window capacity and
-            contributors determine occupancy. Repository size sets footprint,
-            recent pushes power the beacon, and archived projects stay dark.
+            Height and façade dots reflect weighted 30-day activity. Dot colors
+            separate commits, merged pull requests, and issue work. Repository
+            size sets footprint, recent pushes power the beacon, and archived
+            projects stay dark.
           </p>
         </aside>
       )}

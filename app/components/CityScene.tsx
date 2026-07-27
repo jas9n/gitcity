@@ -49,6 +49,37 @@ type CityBounds = {
 };
 
 type SurfaceTone = "default" | "hovered" | "selected";
+type ActivityDotKind = "commits" | "pullRequests" | "issues";
+
+type ActivityDotSlot = {
+  building: CityBuilding;
+  dotIndex: number;
+  dotCount: number;
+  side: number;
+};
+
+const ACTIVITY_DOT_COLORS: Record<ActivityDotKind, string> = {
+  commits: "#67e8f9",
+  pullRequests: "#c084fc",
+  issues: "#fb7185",
+};
+
+function activityDotKind(
+  building: CityBuilding,
+  dotIndex: number,
+  dotCount: number,
+): ActivityDotKind {
+  const commitWeight = building.commits30d;
+  const pullRequestWeight = building.mergedPullRequests30d * 3;
+  const issueWeight =
+    building.closedIssues30d * 2 + building.openedIssues30d;
+  const totalWeight = commitWeight + pullRequestWeight + issueWeight;
+  const sample = ((dotIndex + 0.5) / dotCount) * totalWeight;
+
+  if (sample < commitWeight) return "commits";
+  if (sample < commitWeight + pullRequestWeight) return "pullRequests";
+  return "issues";
+}
 
 function calculateBounds(buildings: CityBuilding[]): CityBounds {
   if (buildings.length === 0) {
@@ -253,6 +284,93 @@ function RooftopBeacons({
   ));
 }
 
+function ActivityDotBatch({
+  slots,
+  color,
+}: {
+  slots: ActivityDotSlot[];
+  color: string;
+}) {
+  const dots = useRef<InstancedMesh>(null);
+  const dummy = useMemo(() => new Object3D(), []);
+
+  useLayoutEffect(() => {
+    if (!dots.current) return;
+
+    slots.forEach(({ building, dotCount, dotIndex, side }, index) => {
+      const facadeWidth = side < 2 ? building.width : building.depth;
+      const seed = hashString(`${building.fullName}:${side}`);
+      const phaseX = (seed % 997) / 997;
+      const phaseY = ((seed >>> 10) % 991) / 991;
+      const horizontal =
+        ((phaseX + (dotIndex + 1) * 0.61803398875) % 1) - 0.5;
+      const vertical =
+        (phaseY + (dotIndex + 1) * 0.41421356237) % 1;
+      const lateral = horizontal * facadeWidth * 0.68;
+      const y =
+        0.48 + vertical * Math.max(0.18, building.height - 0.88);
+      const localX =
+        side < 2
+          ? lateral
+          : (side === 2 ? 1 : -1) * (building.width / 2 + 0.028);
+      const localZ =
+        side < 2
+          ? (side === 0 ? 1 : -1) * (building.depth / 2 + 0.028)
+          : lateral;
+      const cosine = Math.cos(building.rotation);
+      const sine = Math.sin(building.rotation);
+      const offsetX = cosine * localX + sine * localZ;
+      const offsetZ = -sine * localX + cosine * localZ;
+      const size =
+        0.045 +
+        (((hashString(`${building.fullName}:${side}:${dotIndex}`) >>> 18) %
+          100) /
+          100) *
+          0.025;
+
+      dummy.position.set(
+        building.position[0] + offsetX,
+        y,
+        building.position[2] + offsetZ,
+      );
+      dummy.rotation.set(
+        0,
+        side === 0
+          ? building.rotation
+          : side === 1
+            ? building.rotation + Math.PI
+            : side === 2
+              ? building.rotation + Math.PI / 2
+              : building.rotation - Math.PI / 2,
+        0,
+      );
+      dummy.scale.setScalar(size * (0.92 + dotCount / 225));
+      dummy.updateMatrix();
+      dots.current!.setMatrixAt(index, dummy.matrix);
+    });
+
+    dots.current.instanceMatrix.needsUpdate = true;
+    dots.current.computeBoundingSphere();
+  }, [dummy, slots]);
+
+  return (
+    <instancedMesh
+      ref={dots}
+      args={[undefined, undefined, slots.length]}
+      raycast={() => null}
+    >
+      <circleGeometry args={[1, 10]} />
+      <meshBasicMaterial
+        color={color}
+        transparent
+        opacity={0.88}
+        depthWrite={false}
+        toneMapped={false}
+      />
+    </instancedMesh>
+  );
+}
+
 function BuildingInstances({
   buildings,
   selectedId,
@@ -262,49 +380,39 @@ function BuildingInstances({
 }: CitySceneProps) {
   const bodies = useRef<InstancedMesh>(null);
   const bases = useRef<InstancedMesh>(null);
-  const litWindows = useRef<InstancedMesh>(null);
-  const darkWindows = useRef<InstancedMesh>(null);
   const [hoveredInstance, setHoveredInstance] = useState<number | null>(null);
   const dummy = useMemo(() => new Object3D(), []);
-  const windowPlan = useMemo(
-    () =>
-      buildings.flatMap((building) => {
-        const rows =
-          buildings.length > 500
-            ? Math.min(10, building.levelCount)
-            : buildings.length > 120
-              ? Math.min(16, building.levelCount)
-              : building.levelCount;
-        const columnLimit =
-          buildings.length > 500 ? 4 : buildings.length > 120 ? 5 : 6;
-        const columns = Math.min(
-          columnLimit,
-          3 + Math.floor(Math.max(0, building.windowCount - 4) / 5),
-        );
-        return Array.from({ length: rows }, (_, row) =>
-          Array.from({ length: 4 }, (_, side) =>
-            Array.from({ length: columns }, (_, column) => ({
-              building,
-              column,
-              columns,
-              row,
-              rows,
-              side,
-              lit:
-                !building.archived &&
-                ((building.activityScore > 0 && row === 0 && column === 0) ||
-                  (hashString(
-                    `${building.fullName}:${row}:${side}:${column}`,
-                  ) %
-                    1000) /
-                    1000 <
-                    building.brightness),
-            })),
-          ).flat(),
-        ).flat();
-      }),
-    [buildings],
-  );
+  const activityDotBatches = useMemo(() => {
+    const batches = new Map<ActivityDotKind, ActivityDotSlot[]>([
+      ["commits", []],
+      ["pullRequests", []],
+      ["issues", []],
+    ]);
+
+    buildings.forEach((building) => {
+      if (building.archived || building.activityDotCount === 0) return;
+      const dotCount =
+        buildings.length > 500
+          ? Math.min(10, building.activityDotCount)
+          : buildings.length > 120
+            ? Math.min(14, building.activityDotCount)
+            : building.activityDotCount;
+
+      for (let side = 0; side < 4; side += 1) {
+        for (let dotIndex = 0; dotIndex < dotCount; dotIndex += 1) {
+          const kind = activityDotKind(building, dotIndex, dotCount);
+          batches.get(kind)!.push({
+            building,
+            dotIndex,
+            dotCount,
+            side,
+          });
+        }
+      }
+    });
+
+    return [...batches.entries()].filter(([, slots]) => slots.length > 0);
+  }, [buildings]);
   const hoveredId =
     hoveredInstance === null ? null : buildings[hoveredInstance]?.id ?? null;
   const languageBatches = useMemo(() => {
@@ -327,8 +435,6 @@ function BuildingInstances({
     });
     return [...batches.values()];
   }, [buildings, hoveredId, selectedId]);
-  const litWindowCount = windowPlan.filter((slot) => slot.lit).length;
-  const darkWindowCount = windowPlan.length - litWindowCount;
 
   useLayoutEffect(() => {
     if (!bodies.current || !bases.current) return;
@@ -371,82 +477,6 @@ function BuildingInstances({
     }
     bodies.current.computeBoundingSphere();
   }, [buildings, dummy]);
-
-  useLayoutEffect(() => {
-    if (
-      (litWindowCount > 0 && !litWindows.current) ||
-      (darkWindowCount > 0 && !darkWindows.current)
-    ) {
-      return;
-    }
-    let litInstance = 0;
-    let darkInstance = 0;
-
-    windowPlan.forEach(
-      ({ building, column, columns, lit, row, rows, side }) => {
-        const y =
-          0.58 +
-          ((row + 1) / (rows + 1)) *
-            Math.max(0.34, building.height - 0.92);
-        const rowSpacing =
-          Math.max(0.34, building.height - 0.92) / (rows + 1);
-        const paneHeight = Math.min(0.28, Math.max(0.09, rowSpacing * 0.48));
-        const facadeWidth = side < 2 ? building.width : building.depth;
-        const lateral =
-          (((column + 1) / (columns + 1)) - 0.5) * facadeWidth * 0.72;
-        const localX =
-          side === 0 || side === 1
-            ? lateral
-            : (side === 2 ? 1 : -1) * (building.width / 2 + 0.022);
-        const localZ =
-          side === 0 || side === 1
-            ? (side === 0 ? 1 : -1) * (building.depth / 2 + 0.022)
-            : lateral;
-        const cosine = Math.cos(building.rotation);
-        const sine = Math.sin(building.rotation);
-        const offsetX = cosine * localX + sine * localZ;
-        const offsetZ = -sine * localX + cosine * localZ;
-        dummy.position.set(
-          building.position[0] + offsetX,
-          y,
-          building.position[2] + offsetZ,
-        );
-        dummy.rotation.set(
-          0,
-          side < 2 ? building.rotation : building.rotation + Math.PI / 2,
-          0,
-        );
-        dummy.scale.set(
-          Math.min(0.46, Math.max(0.18, facadeWidth * 0.15)),
-          lit ? paneHeight : paneHeight * 0.9,
-          0.03,
-        );
-        dummy.updateMatrix();
-
-        if (lit) {
-          litWindows.current!.setMatrixAt(litInstance, dummy.matrix);
-          litInstance += 1;
-        } else {
-          darkWindows.current!.setMatrixAt(darkInstance, dummy.matrix);
-          darkInstance += 1;
-        }
-      },
-    );
-
-    if (litWindows.current) {
-      litWindows.current.instanceMatrix.needsUpdate = true;
-      litWindows.current.computeBoundingSphere();
-    }
-    if (darkWindows.current) {
-      darkWindows.current.instanceMatrix.needsUpdate = true;
-      darkWindows.current.computeBoundingSphere();
-    }
-  }, [
-    darkWindowCount,
-    dummy,
-    litWindowCount,
-    windowPlan,
-  ]);
 
   const buildingFromEvent = (
     event: ThreeEvent<PointerEvent> | ThreeEvent<MouseEvent>,
@@ -518,26 +548,13 @@ function BuildingInstances({
 
       <RooftopBeacons buildings={buildings} reduceMotion={reduceMotion} />
 
-      {litWindowCount > 0 && (
-        <instancedMesh
-          ref={litWindows}
-          args={[undefined, undefined, litWindowCount]}
-          raycast={() => null}
-        >
-          <boxGeometry args={[1, 1, 1]} />
-          <meshBasicMaterial color="#ffd477" toneMapped={false} />
-        </instancedMesh>
-      )}
-      {darkWindowCount > 0 && (
-        <instancedMesh
-          ref={darkWindows}
-          args={[undefined, undefined, darkWindowCount]}
-          raycast={() => null}
-        >
-          <boxGeometry args={[1, 1, 1]} />
-          <meshBasicMaterial color="#182a33" toneMapped={false} />
-        </instancedMesh>
-      )}
+      {activityDotBatches.map(([kind, slots]) => (
+        <ActivityDotBatch
+          key={kind}
+          slots={slots}
+          color={ACTIVITY_DOT_COLORS[kind]}
+        />
+      ))}
     </group>
   );
 }
