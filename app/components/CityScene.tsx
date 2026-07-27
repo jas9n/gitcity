@@ -276,14 +276,7 @@ function BuildingInstances({
               ? 2
               : Math.max(1, Math.min(4, Math.ceil(building.windowCount / 6)));
         const columns =
-          buildings.length > 500
-            ? 1
-            : buildings.length > 120
-              ? 2
-              : Math.max(
-                  1,
-                  Math.min(3, Math.ceil(building.windowCount / (rows * 4))),
-                );
+          buildings.length > 120 ? 3 : building.windowCount >= 20 ? 4 : 3;
         return Array.from({ length: rows }, (_, row) =>
           Array.from({ length: 4 }, (_, side) =>
             Array.from({ length: columns }, (_, column) => ({

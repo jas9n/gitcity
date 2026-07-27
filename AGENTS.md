@@ -42,7 +42,7 @@ so one highly active repository does not flatten the rest of the skyline.
 Lighting keeps popularity and people separate: logarithmic/normalized stars
 set window capacity, while normalized active contributors set the percentage
 of those windows currently lit. Render windows as individual façade panes, not
-continuous horizontal bands.
+continuous horizontal bands, with at least three panes per visible row.
 
 ## Color direction
 
