@@ -3,6 +3,7 @@ import {
   activityScore,
   buildCity,
   hashString,
+  languageColor,
   percentile,
   type RepositorySignal,
 } from "./city-model";
@@ -101,5 +102,12 @@ describe("city model", () => {
 
     expect(distance).toBeLessThan(4);
     expect(distance).toBeGreaterThan(3.1);
+  });
+
+  it("uses core colors for common languages and gray for uncommon ones", () => {
+    expect(languageColor("TypeScript")).toBe("#3178c6");
+    expect(languageColor("Python")).toBe("#3572a5");
+    expect(languageColor("UncommonLang")).toBe(languageColor("Other"));
+    expect(languageColor("UncommonLang")).toBe("#7b858f");
   });
 });

@@ -46,21 +46,23 @@ export type CitySummary = {
 };
 
 const LANGUAGE_COLORS: Record<string, string> = {
-  TypeScript: "#35d7ff",
-  JavaScript: "#f8dd62",
-  Python: "#84f7b3",
-  Rust: "#ff8364",
-  Go: "#68e3e8",
-  Java: "#ff9f67",
-  Ruby: "#ff668f",
-  Swift: "#ff845f",
-  Kotlin: "#aa8dff",
-  "C++": "#8ab4ff",
-  C: "#9ba8c5",
-  Shell: "#b8ff7a",
-  CSS: "#d46cff",
-  HTML: "#ff765e",
-  Other: "#91a2bd",
+  TypeScript: "#3178c6",
+  JavaScript: "#f1e05a",
+  Python: "#3572a5",
+  Go: "#00add8",
+  Rust: "#dea584",
+  Java: "#b07219",
+  Ruby: "#701516",
+  Swift: "#f05138",
+  Kotlin: "#a97bff",
+  "C++": "#f34b7d",
+  C: "#555555",
+  "C#": "#178600",
+  PHP: "#4f5d95",
+  Shell: "#89e051",
+  CSS: "#563d7c",
+  HTML: "#e34c26",
+  Other: "#7b858f",
 };
 
 const clamp = (value: number, min: number, max: number) =>
@@ -192,8 +194,14 @@ export function buildCity(repositories: RepositorySignal[]): CityBuilding[] {
     const height = repo.archived ? 1.4 : 2.2 + activityNormalized * 15.8;
     const width = 1.8 + Math.sqrt(sizeNormalized) * 1.35;
     const brightness = repo.archived
-      ? 0.06
-      : clamp(0.16 + starsNormalized * 0.48 + contributorsNormalized * 0.36, 0.16, 1);
+      ? 0.04
+      : clamp(
+          0.1 +
+            starsNormalized * 0.35 +
+            contributorsNormalized * 0.65,
+          0.1,
+          1,
+        );
     const tier: BuildingTier =
       height > 15
         ? "landmark"
@@ -214,7 +222,7 @@ export function buildCity(repositories: RepositorySignal[]): CityBuilding[] {
       width,
       depth: width * (0.8 + ((hashString(repo.name) >> 4) % 18) / 100),
       brightness,
-      windowCount: Math.round(5 + starsNormalized * 13 + contributorsNormalized * 8),
+      windowCount: Math.round(4 + starsNormalized * 20),
       tier,
       accent: languageColor(repo.language),
       district: repo.language || "Other",

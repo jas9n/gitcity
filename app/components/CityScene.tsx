@@ -30,6 +30,7 @@ import {
   Object3D,
 } from "three";
 import type { CityBuilding } from "@/lib/city-model";
+import { hashString } from "@/lib/city-model";
 
 type CitySceneProps = {
   buildings: CityBuilding[];
@@ -72,14 +73,57 @@ function calculateBounds(buildings: CityBuilding[]): CityBounds {
   };
 }
 
-function instanceColor(
-  building: CityBuilding,
-  selected: boolean,
-  hovered: boolean,
-) {
-  const base = new Color("#16354a");
-  const accent = new Color(building.accent);
-  return base.lerp(accent, selected ? 0.7 : hovered ? 0.55 : 0.32);
+function LanguageSurface({
+  buildings,
+  color,
+}: {
+  buildings: CityBuilding[];
+  color: string;
+}) {
+  const surface = useRef<InstancedMesh>(null);
+  const dummy = useMemo(() => new Object3D(), []);
+  const displayColor = useMemo(
+    () => new Color(color).lerp(new Color("#05080b"), 0.24),
+    [color],
+  );
+
+  useLayoutEffect(() => {
+    if (!surface.current) return;
+    buildings.forEach((building, index) => {
+      dummy.position.set(
+        building.position[0],
+        building.height / 2,
+        building.position[2],
+      );
+      dummy.rotation.set(0, building.rotation, 0);
+      dummy.scale.set(
+        building.width * 1.002,
+        building.height * 1.001,
+        building.depth * 1.002,
+      );
+      dummy.updateMatrix();
+      surface.current!.setMatrixAt(index, dummy.matrix);
+    });
+    surface.current.instanceMatrix.needsUpdate = true;
+    surface.current.computeBoundingSphere();
+  }, [buildings, dummy]);
+
+  return (
+    <instancedMesh
+      ref={surface}
+      args={[undefined, undefined, buildings.length]}
+      raycast={() => null}
+    >
+      <boxGeometry args={[1, 1, 1]} />
+      <meshBasicMaterial
+        color={displayColor}
+        polygonOffset
+        polygonOffsetFactor={-1}
+        polygonOffsetUnits={-1}
+        toneMapped={false}
+      />
+    </instancedMesh>
+  );
 }
 
 function BuildingInstances({
@@ -91,14 +135,47 @@ function BuildingInstances({
   const bodies = useRef<InstancedMesh>(null);
   const bases = useRef<InstancedMesh>(null);
   const caps = useRef<InstancedMesh>(null);
-  const windows = useRef<InstancedMesh>(null);
+  const litWindows = useRef<InstancedMesh>(null);
+  const darkWindows = useRef<InstancedMesh>(null);
   const [hoveredInstance, setHoveredInstance] = useState<number | null>(null);
   const dummy = useMemo(() => new Object3D(), []);
-  const detailedWindows = buildings.length <= 360;
-  const windowRows = buildings.length <= 120 ? 4 : 2;
-  const windowCount = detailedWindows
-    ? buildings.length * windowRows * 4
-    : 0;
+  const windowPlan = useMemo(
+    () =>
+      buildings.flatMap((building) => {
+        const rows =
+          buildings.length > 500
+            ? 1
+            : buildings.length > 120
+              ? 2
+              : Math.max(2, Math.min(6, Math.round(building.windowCount / 4)));
+        return Array.from({ length: rows }, (_, row) =>
+          Array.from({ length: 4 }, (_, side) => ({
+            building,
+            row,
+            rows,
+            side,
+            lit:
+              !building.archived &&
+              (hashString(`${building.fullName}:${row}:${side}`) % 1000) /
+                1000 <
+                building.brightness,
+          })),
+        ).flat();
+      }),
+    [buildings],
+  );
+  const languageBatches = useMemo(() => {
+    const batches = new Map<string, CityBuilding[]>();
+    buildings.forEach((building) => {
+      const color = building.archived ? "#252b30" : building.accent;
+      const batch = batches.get(color) ?? [];
+      batch.push(building);
+      batches.set(color, batch);
+    });
+    return [...batches.entries()];
+  }, [buildings]);
+  const litWindowCount = windowPlan.filter((slot) => slot.lit).length;
+  const darkWindowCount = windowPlan.length - litWindowCount;
 
   useLayoutEffect(() => {
     if (!bodies.current || !bases.current || !caps.current) return;
@@ -125,10 +202,6 @@ function BuildingInstances({
       );
       dummy.updateMatrix();
       bodies.current!.setMatrixAt(index, dummy.matrix);
-      bodies.current!.setColorAt(
-        index,
-        instanceColor(building, selected, hovered),
-      );
 
       dummy.position.set(
         building.position[0],
@@ -160,7 +233,6 @@ function BuildingInstances({
     bodies.current.instanceMatrix.needsUpdate = true;
     bases.current.instanceMatrix.needsUpdate = true;
     caps.current.instanceMatrix.needsUpdate = true;
-    if (bodies.current.instanceColor) bodies.current.instanceColor.needsUpdate = true;
     if (!Array.isArray(bodies.current.material)) {
       bodies.current.material.needsUpdate = true;
     }
@@ -174,68 +246,88 @@ function BuildingInstances({
   }, [buildings, dummy, hoveredInstance, selectedId]);
 
   useLayoutEffect(() => {
-    if (!windows.current || !detailedWindows) return;
-    let instance = 0;
+    if (
+      (litWindowCount > 0 && !litWindows.current) ||
+      (darkWindowCount > 0 && !darkWindows.current)
+    ) {
+      return;
+    }
+    let litInstance = 0;
+    let darkInstance = 0;
 
-    buildings.forEach((building) => {
-      for (let row = 0; row < windowRows; row += 1) {
-        const y = 0.75 + ((row + 1) / (windowRows + 1)) * Math.max(0.4, building.height - 1.2);
-        const frontX =
-          Math.sin(building.rotation) * (building.depth / 2 + 0.02);
-        const frontZ =
-          Math.cos(building.rotation) * (building.depth / 2 + 0.02);
-        const sideX =
-          Math.cos(building.rotation) * (building.width / 2 + 0.02);
-        const sideZ =
-          -Math.sin(building.rotation) * (building.width / 2 + 0.02);
-        const bands = [
-          {
-            x: frontX,
-            z: frontZ,
-            rotation: building.rotation,
-            width: building.width * 0.68,
-          },
-          {
-            x: -frontX,
-            z: -frontZ,
-            rotation: building.rotation,
-            width: building.width * 0.68,
-          },
-          {
-            x: sideX,
-            z: sideZ,
-            rotation: building.rotation + Math.PI / 2,
-            width: building.depth * 0.68,
-          },
-          {
-            x: -sideX,
-            z: -sideZ,
-            rotation: building.rotation + Math.PI / 2,
-            width: building.depth * 0.68,
-          },
-        ];
+    windowPlan.forEach(({ building, lit, row, rows, side }) => {
+      const y =
+        0.75 +
+        ((row + 1) / (rows + 1)) *
+          Math.max(0.4, building.height - 1.2);
+      const frontX =
+        Math.sin(building.rotation) * (building.depth / 2 + 0.02);
+      const frontZ =
+        Math.cos(building.rotation) * (building.depth / 2 + 0.02);
+      const sideX =
+        Math.cos(building.rotation) * (building.width / 2 + 0.02);
+      const sideZ =
+        -Math.sin(building.rotation) * (building.width / 2 + 0.02);
+      const bands = [
+        {
+          x: frontX,
+          z: frontZ,
+          rotation: building.rotation,
+          width: building.width * 0.68,
+        },
+        {
+          x: -frontX,
+          z: -frontZ,
+          rotation: building.rotation,
+          width: building.width * 0.68,
+        },
+        {
+          x: sideX,
+          z: sideZ,
+          rotation: building.rotation + Math.PI / 2,
+          width: building.depth * 0.68,
+        },
+        {
+          x: -sideX,
+          z: -sideZ,
+          rotation: building.rotation + Math.PI / 2,
+          width: building.depth * 0.68,
+        },
+      ];
 
-        bands.forEach((band) => {
-          dummy.position.set(
-            building.position[0] + band.x,
-            y,
-            building.position[2] + band.z,
-          );
-          dummy.rotation.set(0, band.rotation, 0);
-          dummy.scale.set(band.width, 0.12, 0.025);
-          dummy.updateMatrix();
-          windows.current!.setMatrixAt(instance, dummy.matrix);
-          instance += 1;
-        });
+      const band = bands[side];
+      dummy.position.set(
+        building.position[0] + band.x,
+        y,
+        building.position[2] + band.z,
+      );
+      dummy.rotation.set(0, band.rotation, 0);
+      dummy.scale.set(band.width, lit ? 0.14 : 0.1, 0.025);
+      dummy.updateMatrix();
+
+      if (lit) {
+        litWindows.current!.setMatrixAt(litInstance, dummy.matrix);
+        litInstance += 1;
+      } else {
+        darkWindows.current!.setMatrixAt(darkInstance, dummy.matrix);
+        darkInstance += 1;
       }
     });
 
-    windows.current.instanceMatrix.needsUpdate = true;
-    if (!Array.isArray(windows.current.material)) {
-      windows.current.material.needsUpdate = true;
+    if (litWindows.current) {
+      litWindows.current.instanceMatrix.needsUpdate = true;
+      litWindows.current.computeBoundingSphere();
     }
-    windows.current.computeBoundingSphere();
-  }, [buildings, detailedWindows, dummy, windowRows]);
+    if (darkWindows.current) {
+      darkWindows.current.instanceMatrix.needsUpdate = true;
+      darkWindows.current.computeBoundingSphere();
+    }
+  }, [
+    darkWindowCount,
+    dummy,
+    litWindowCount,
+    windowPlan,
+  ]);
 
   const buildingFromEvent = (
     event: ThreeEvent<PointerEvent> | ThreeEvent<MouseEvent>,
@@ -272,14 +364,12 @@ function BuildingInstances({
         }}
       >
         <boxGeometry args={[1, 1, 1]} />
-        <meshStandardMaterial
-          vertexColors
-          emissive="#176b8d"
-          emissiveIntensity={1.15}
-          metalness={0.42}
-          roughness={0.46}
-        />
+        <meshBasicMaterial color="#071018" toneMapped={false} />
       </instancedMesh>
+
+      {languageBatches.map(([color, batch]) => (
+        <LanguageSurface key={color} buildings={batch} color={color} />
+      ))}
 
       <instancedMesh
         ref={bases}
@@ -305,14 +395,24 @@ function BuildingInstances({
         <meshBasicMaterial color="#5be9ff" toneMapped={false} />
       </instancedMesh>
 
-      {detailedWindows && (
+      {litWindowCount > 0 && (
         <instancedMesh
-          ref={windows}
-          args={[undefined, undefined, windowCount]}
+          ref={litWindows}
+          args={[undefined, undefined, litWindowCount]}
           raycast={() => null}
         >
           <boxGeometry args={[1, 1, 1]} />
           <meshBasicMaterial color="#ffd477" toneMapped={false} />
+        </instancedMesh>
+      )}
+      {darkWindowCount > 0 && (
+        <instancedMesh
+          ref={darkWindows}
+          args={[undefined, undefined, darkWindowCount]}
+          raycast={() => null}
+        >
+          <boxGeometry args={[1, 1, 1]} />
+          <meshBasicMaterial color="#182a33" toneMapped={false} />
         </instancedMesh>
       )}
     </group>
