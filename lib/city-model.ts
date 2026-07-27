@@ -1,0 +1,263 @@
+export type RepositorySignal = {
+  id: number | string;
+  name: string;
+  fullName: string;
+  description: string;
+  url: string;
+  language: string;
+  stars: number;
+  forks: number;
+  openIssues: number;
+  sizeKb: number;
+  createdAt: string;
+  pushedAt: string;
+  archived: boolean;
+  isFork: boolean;
+  commits30d: number;
+  mergedPullRequests30d: number;
+  closedIssues30d: number;
+  openedIssues30d: number;
+  contributorCount: number;
+};
+
+export type BuildingTier = "low-rise" | "mid-rise" | "tower" | "landmark";
+
+export type CityBuilding = RepositorySignal & {
+  activityScore: number;
+  height: number;
+  width: number;
+  depth: number;
+  brightness: number;
+  windowCount: number;
+  tier: BuildingTier;
+  accent: string;
+  district: string;
+  position: [number, number, number];
+  rotation: number;
+};
+
+export type CitySummary = {
+  totalStars: number;
+  totalCommits30d: number;
+  totalContributors: number;
+  activeRepositories: number;
+  primaryLanguage: string;
+};
+
+const LANGUAGE_COLORS: Record<string, string> = {
+  TypeScript: "#35d7ff",
+  JavaScript: "#f8dd62",
+  Python: "#84f7b3",
+  Rust: "#ff8364",
+  Go: "#68e3e8",
+  Java: "#ff9f67",
+  Ruby: "#ff668f",
+  Swift: "#ff845f",
+  Kotlin: "#aa8dff",
+  "C++": "#8ab4ff",
+  C: "#9ba8c5",
+  Shell: "#b8ff7a",
+  CSS: "#d46cff",
+  HTML: "#ff765e",
+  Other: "#91a2bd",
+};
+
+const clamp = (value: number, min: number, max: number) =>
+  Math.min(max, Math.max(min, value));
+
+export function hashString(value: string): number {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+export function percentile(values: number[], quantile: number): number {
+  if (values.length === 0) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const index = clamp(quantile, 0, 1) * (sorted.length - 1);
+  const lower = Math.floor(index);
+  const upper = Math.ceil(index);
+  if (lower === upper) return sorted[lower];
+  const weight = index - lower;
+  return sorted[lower] * (1 - weight) + sorted[upper] * weight;
+}
+
+export function activityScore(repo: RepositorySignal): number {
+  if (repo.archived) return 0;
+  return (
+    repo.commits30d +
+    repo.mergedPullRequests30d * 3 +
+    repo.closedIssues30d * 2 +
+    repo.openedIssues30d
+  );
+}
+
+export function languageColor(language: string): string {
+  return LANGUAGE_COLORS[language] ?? LANGUAGE_COLORS.Other;
+}
+
+function districtOrigins(languages: string[]) {
+  const columns = Math.ceil(Math.sqrt(languages.length));
+  const spacing = 16;
+  return new Map(
+    languages.map((language, index) => {
+      const column = index % columns;
+      const row = Math.floor(index / columns);
+      return [
+        language,
+        [
+          (column - (columns - 1) / 2) * spacing,
+          (row - (Math.ceil(languages.length / columns) - 1) / 2) * spacing,
+        ] as const,
+      ];
+    }),
+  );
+}
+
+function createLayout(repositories: RepositorySignal[]) {
+  const groups = new Map<string, RepositorySignal[]>();
+  repositories.forEach((repo) => {
+    const district = repo.language || "Other";
+    const group = groups.get(district) ?? [];
+    group.push(repo);
+    groups.set(district, group);
+  });
+
+  const languages = [...groups.keys()].sort((a, b) => {
+    const sizeDelta = (groups.get(b)?.length ?? 0) - (groups.get(a)?.length ?? 0);
+    return sizeDelta || a.localeCompare(b);
+  });
+  const origins = districtOrigins(languages);
+  const placements = new Map<
+    RepositorySignal["id"],
+    { position: [number, number, number]; rotation: number }
+  >();
+
+  languages.forEach((language) => {
+    const repositoriesInDistrict = [...(groups.get(language) ?? [])].sort(
+      (a, b) => activityScore(b) - activityScore(a) || a.name.localeCompare(b.name),
+    );
+    const origin = origins.get(language) ?? [0, 0];
+    const gridWidth = Math.ceil(Math.sqrt(repositoriesInDistrict.length));
+
+    repositoriesInDistrict.forEach((repo, index) => {
+      const column = index % gridWidth;
+      const row = Math.floor(index / gridWidth);
+      const seed = hashString(repo.fullName);
+      const jitterX = ((seed & 255) / 255 - 0.5) * 0.8;
+      const jitterZ = (((seed >> 8) & 255) / 255 - 0.5) * 0.8;
+      const localSpacing = 4.7;
+      placements.set(repo.id, {
+        position: [
+          origin[0] + (column - (gridWidth - 1) / 2) * localSpacing + jitterX,
+          0,
+          origin[1] + (row - (Math.ceil(repositoriesInDistrict.length / gridWidth) - 1) / 2) * localSpacing + jitterZ,
+        ],
+        rotation: ((seed % 5) - 2) * 0.018,
+      });
+    });
+  });
+
+  return placements;
+}
+
+export function buildCity(repositories: RepositorySignal[]): CityBuilding[] {
+  if (repositories.length === 0) return [];
+
+  const scores = repositories.map(activityScore);
+  const activityCeiling = Math.max(1, percentile(scores.map(Math.log1p), 0.95));
+  const starCeiling = Math.max(
+    1,
+    percentile(repositories.map((repo) => Math.log1p(repo.stars)), 0.95),
+  );
+  const contributorCeiling = Math.max(
+    1,
+    percentile(
+      repositories.map((repo) => Math.log1p(repo.contributorCount)),
+      0.95,
+    ),
+  );
+  const sizeCeiling = Math.max(
+    1,
+    percentile(repositories.map((repo) => Math.log1p(repo.sizeKb)), 0.9),
+  );
+  const placements = createLayout(repositories);
+
+  return repositories.map((repo) => {
+    const score = activityScore(repo);
+    const activityNormalized = clamp(Math.log1p(score) / activityCeiling, 0, 1.15);
+    const starsNormalized = clamp(Math.log1p(repo.stars) / starCeiling, 0, 1);
+    const contributorsNormalized = clamp(
+      Math.log1p(repo.contributorCount) / contributorCeiling,
+      0,
+      1,
+    );
+    const sizeNormalized = clamp(Math.log1p(repo.sizeKb) / sizeCeiling, 0, 1);
+    const height = repo.archived ? 1.4 : 2.2 + activityNormalized * 15.8;
+    const width = 1.8 + Math.sqrt(sizeNormalized) * 1.35;
+    const brightness = repo.archived
+      ? 0.06
+      : clamp(0.16 + starsNormalized * 0.48 + contributorsNormalized * 0.36, 0.16, 1);
+    const tier: BuildingTier =
+      height > 15
+        ? "landmark"
+        : height > 10
+          ? "tower"
+          : height > 5.5
+            ? "mid-rise"
+            : "low-rise";
+    const placement = placements.get(repo.id) ?? {
+      position: [0, 0, 0] as [number, number, number],
+      rotation: 0,
+    };
+
+    return {
+      ...repo,
+      activityScore: score,
+      height,
+      width,
+      depth: width * (0.8 + ((hashString(repo.name) >> 4) % 18) / 100),
+      brightness,
+      windowCount: Math.round(5 + starsNormalized * 13 + contributorsNormalized * 8),
+      tier,
+      accent: languageColor(repo.language),
+      district: repo.language || "Other",
+      position: placement.position,
+      rotation: placement.rotation,
+    };
+  });
+}
+
+export function summarizeCity(repositories: RepositorySignal[]): CitySummary {
+  const languageCounts = new Map<string, number>();
+  const activeCutoff = Date.now() - 1000 * 60 * 60 * 24 * 60;
+
+  repositories.forEach((repo) => {
+    const language = repo.language || "Other";
+    languageCounts.set(language, (languageCounts.get(language) ?? 0) + 1);
+  });
+
+  const primaryLanguage =
+    [...languageCounts.entries()].sort(
+      (a, b) => b[1] - a[1] || a[0].localeCompare(b[0]),
+    )[0]?.[0] ?? "—";
+
+  return {
+    totalStars: repositories.reduce((total, repo) => total + repo.stars, 0),
+    totalCommits30d: repositories.reduce(
+      (total, repo) => total + repo.commits30d,
+      0,
+    ),
+    totalContributors: repositories.reduce(
+      (total, repo) => total + repo.contributorCount,
+      0,
+    ),
+    activeRepositories: repositories.filter(
+      (repo) => !repo.archived && new Date(repo.pushedAt).getTime() >= activeCutoff,
+    ).length,
+    primaryLanguage,
+  };
+}
