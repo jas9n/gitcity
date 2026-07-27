@@ -38,7 +38,8 @@ Use the rolling 30-day activity score:
 
 Height and visible floor rows use logarithmic activity scaling normalized
 against the city’s 95th percentile so one highly active repository does not
-flatten the rest of the skyline.
+flatten the rest of the skyline. Use a dense 4–24-row scale in normal cities;
+large-city modes may cap rows for performance but should remain visibly dense.
 
 Lighting keeps popularity and people separate: logarithmic/normalized stars
 set the number of panes per row, while normalized active contributors set the
@@ -53,7 +54,8 @@ Use recognizable core colors for common languages (for example TypeScript,
 JavaScript, Python, Go, Rust, Java, Ruby, Swift, Kotlin, C/C++, C#, PHP, Shell,
 HTML, and CSS). Languages outside the curated common palette use a consistent
 neutral gray. Roofs share their building color, hover uses a darker version of
-that same color, and archived repositories remain visibly subdued.
+that same color without changing building geometry or covering windows, and
+archived repositories remain visibly subdued.
 
 ## Experience and architecture
 

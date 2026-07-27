@@ -105,7 +105,7 @@ function BuildingSurfaceBatch({
   useLayoutEffect(() => {
     if (!surfaces.current || !roofs.current) return;
     buildings.forEach((building, index) => {
-      const emphasis = tone === "default" ? 1.002 : 1.024;
+      const emphasis = 1.002;
       dummy.position.set(
         building.position[0],
         building.height / 2,
@@ -122,12 +122,12 @@ function BuildingSurfaceBatch({
 
       dummy.position.set(
         building.position[0],
-        building.height + (tone === "default" ? 0.035 : 0.055),
+        building.height + 0.035,
         building.position[2],
       );
       dummy.scale.set(
         building.width * 0.9 * emphasis,
-        tone === "default" ? 0.07 : 0.11,
+        0.07,
         building.depth * 0.9 * emphasis,
       );
       dummy.updateMatrix();
@@ -137,7 +137,7 @@ function BuildingSurfaceBatch({
     roofs.current.instanceMatrix.needsUpdate = true;
     surfaces.current.computeBoundingSphere();
     roofs.current.computeBoundingSphere();
-  }, [buildings, dummy, tone]);
+  }, [buildings, dummy]);
 
   return (
     <>
@@ -271,9 +271,9 @@ function BuildingInstances({
       buildings.flatMap((building) => {
         const rows =
           buildings.length > 500
-            ? Math.min(6, building.levelCount)
+            ? Math.min(10, building.levelCount)
             : buildings.length > 120
-              ? Math.min(9, building.levelCount)
+              ? Math.min(16, building.levelCount)
               : building.levelCount;
         const columnLimit =
           buildings.length > 500 ? 4 : buildings.length > 120 ? 5 : 6;
@@ -385,9 +385,12 @@ function BuildingInstances({
     windowPlan.forEach(
       ({ building, column, columns, lit, row, rows, side }) => {
         const y =
-          0.75 +
+          0.58 +
           ((row + 1) / (rows + 1)) *
-            Math.max(0.4, building.height - 1.2);
+            Math.max(0.34, building.height - 0.92);
+        const rowSpacing =
+          Math.max(0.34, building.height - 0.92) / (rows + 1);
+        const paneHeight = Math.min(0.28, Math.max(0.09, rowSpacing * 0.48));
         const facadeWidth = side < 2 ? building.width : building.depth;
         const lateral =
           (((column + 1) / (columns + 1)) - 0.5) * facadeWidth * 0.72;
@@ -415,7 +418,7 @@ function BuildingInstances({
         );
         dummy.scale.set(
           Math.min(0.46, Math.max(0.18, facadeWidth * 0.15)),
-          lit ? 0.24 : 0.2,
+          lit ? paneHeight : paneHeight * 0.9,
           0.03,
         );
         dummy.updateMatrix();

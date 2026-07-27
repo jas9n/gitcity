@@ -226,7 +226,7 @@ export function buildCity(
       width,
       depth: width * (0.8 + ((hashString(repo.name) >> 4) % 18) / 100),
       brightness,
-      levelCount: Math.max(2, Math.min(14, Math.round(height / 1.15))),
+      levelCount: Math.max(4, Math.min(24, Math.round(height / 0.75))),
       windowCount: Math.round(4 + starsNormalized * 20),
       recentActivity,
       tier,
