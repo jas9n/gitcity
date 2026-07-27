@@ -221,27 +221,38 @@ a:focus-visible {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 0 8px;
-  border: 0;
-  background: transparent;
-  color: #a9eff8;
+  padding: 0 10px;
+  border: 1px solid rgba(208, 247, 255, 0.8);
+  background: #d8f7fc;
+  color: #06141d;
+  box-shadow:
+    0 0 18px rgba(99, 231, 255, 0.12),
+    inset 0 1px rgba(255, 255, 255, 0.72);
   font-family: var(--font-geist-mono), monospace;
   font-size: 8px;
-  font-weight: 650;
+  font-weight: 720;
   letter-spacing: 0.11em;
   text-transform: uppercase;
   cursor: pointer;
-  transition: color 180ms ease, background 180ms ease;
+  transition:
+    color 180ms ease,
+    background 180ms ease,
+    border-color 180ms ease,
+    box-shadow 180ms ease;
 }
 
 .discovery-trigger:hover,
 .discovery-trigger[aria-expanded="true"] {
-  color: #e4fbff;
-  background: rgba(82, 220, 245, 0.09);
+  border-color: #ffffff;
+  background: #f2fcff;
+  color: #02090e;
+  box-shadow:
+    0 0 24px rgba(99, 231, 255, 0.24),
+    inset 0 1px #ffffff;
 }
 
 .discovery-trigger svg:last-child {
-  color: #688396;
+  color: #36505d;
   transition: transform 180ms ease;
 }
 
