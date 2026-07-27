@@ -96,7 +96,9 @@ function BuildingInstances({
   const dummy = useMemo(() => new Object3D(), []);
   const detailedWindows = buildings.length <= 360;
   const windowRows = buildings.length <= 120 ? 4 : 2;
-  const windowCount = detailedWindows ? buildings.length * windowRows : 0;
+  const windowCount = detailedWindows
+    ? buildings.length * windowRows * 4
+    : 0;
 
   useLayoutEffect(() => {
     if (!bodies.current || !bases.current || !caps.current) return;
@@ -178,19 +180,53 @@ function BuildingInstances({
     buildings.forEach((building) => {
       for (let row = 0; row < windowRows; row += 1) {
         const y = 0.75 + ((row + 1) / (windowRows + 1)) * Math.max(0.4, building.height - 1.2);
-        const offsetX = Math.sin(building.rotation) * (building.depth / 2 + 0.02);
-        const offsetZ = Math.cos(building.rotation) * (building.depth / 2 + 0.02);
-        dummy.position.set(
-          building.position[0] + offsetX,
-          y,
-          building.position[2] + offsetZ,
-        );
-        dummy.rotation.set(0, building.rotation, 0);
-        dummy.scale.set(building.width * 0.68, 0.12, 0.025);
-        dummy.updateMatrix();
-        windows.current!.setMatrixAt(instance, dummy.matrix);
+        const frontX =
+          Math.sin(building.rotation) * (building.depth / 2 + 0.02);
+        const frontZ =
+          Math.cos(building.rotation) * (building.depth / 2 + 0.02);
+        const sideX =
+          Math.cos(building.rotation) * (building.width / 2 + 0.02);
+        const sideZ =
+          -Math.sin(building.rotation) * (building.width / 2 + 0.02);
+        const bands = [
+          {
+            x: frontX,
+            z: frontZ,
+            rotation: building.rotation,
+            width: building.width * 0.68,
+          },
+          {
+            x: -frontX,
+            z: -frontZ,
+            rotation: building.rotation,
+            width: building.width * 0.68,
+          },
+          {
+            x: sideX,
+            z: sideZ,
+            rotation: building.rotation + Math.PI / 2,
+            width: building.depth * 0.68,
+          },
+          {
+            x: -sideX,
+            z: -sideZ,
+            rotation: building.rotation + Math.PI / 2,
+            width: building.depth * 0.68,
+          },
+        ];
 
-        instance += 1;
+        bands.forEach((band) => {
+          dummy.position.set(
+            building.position[0] + band.x,
+            y,
+            building.position[2] + band.z,
+          );
+          dummy.rotation.set(0, band.rotation, 0);
+          dummy.scale.set(band.width, 0.12, 0.025);
+          dummy.updateMatrix();
+          windows.current!.setMatrixAt(instance, dummy.matrix);
+          instance += 1;
+        });
       }
     });
 
@@ -238,10 +274,10 @@ function BuildingInstances({
         <boxGeometry args={[1, 1, 1]} />
         <meshStandardMaterial
           vertexColors
-          emissive="#12384d"
-          emissiveIntensity={0.72}
-          metalness={0.58}
-          roughness={0.38}
+          emissive="#176b8d"
+          emissiveIntensity={1.15}
+          metalness={0.42}
+          roughness={0.46}
         />
       </instancedMesh>
 
