@@ -30,7 +30,6 @@ import {
   Object3D,
 } from "three";
 import type { CityBuilding } from "@/lib/city-model";
-import { hashString } from "@/lib/city-model";
 
 type CitySceneProps = {
   buildings: CityBuilding[];
@@ -78,9 +77,9 @@ function instanceColor(
   selected: boolean,
   hovered: boolean,
 ) {
-  const base = new Color("#07111b");
+  const base = new Color("#16354a");
   const accent = new Color(building.accent);
-  return base.lerp(accent, selected ? 0.34 : hovered ? 0.24 : 0.11);
+  return base.lerp(accent, selected ? 0.7 : hovered ? 0.55 : 0.32);
 }
 
 function BuildingInstances({
@@ -141,10 +140,6 @@ function BuildingInstances({
       );
       dummy.updateMatrix();
       bases.current!.setMatrixAt(index, dummy.matrix);
-      bases.current!.setColorAt(
-        index,
-        new Color(building.accent).multiplyScalar(selected ? 0.44 : 0.2),
-      );
 
       dummy.position.set(
         building.position[0],
@@ -158,15 +153,21 @@ function BuildingInstances({
       );
       dummy.updateMatrix();
       caps.current!.setMatrixAt(index, dummy.matrix);
-      caps.current!.setColorAt(index, new Color(building.accent));
     });
 
     bodies.current.instanceMatrix.needsUpdate = true;
     bases.current.instanceMatrix.needsUpdate = true;
     caps.current.instanceMatrix.needsUpdate = true;
     if (bodies.current.instanceColor) bodies.current.instanceColor.needsUpdate = true;
-    if (bases.current.instanceColor) bases.current.instanceColor.needsUpdate = true;
-    if (caps.current.instanceColor) caps.current.instanceColor.needsUpdate = true;
+    if (!Array.isArray(bodies.current.material)) {
+      bodies.current.material.needsUpdate = true;
+    }
+    if (!Array.isArray(bases.current.material)) {
+      bases.current.material.needsUpdate = true;
+    }
+    if (!Array.isArray(caps.current.material)) {
+      caps.current.material.needsUpdate = true;
+    }
     bodies.current.computeBoundingSphere();
   }, [buildings, dummy, hoveredInstance, selectedId]);
 
@@ -189,20 +190,13 @@ function BuildingInstances({
         dummy.updateMatrix();
         windows.current!.setMatrixAt(instance, dummy.matrix);
 
-        const lit =
-          (hashString(`${building.fullName}-band-${row}`) % 1000) / 1000 <
-          building.brightness;
-        windows.current!.setColorAt(
-          instance,
-          new Color(lit ? "#ffc968" : "#0b1c2a"),
-        );
         instance += 1;
       }
     });
 
     windows.current.instanceMatrix.needsUpdate = true;
-    if (windows.current.instanceColor) {
-      windows.current.instanceColor.needsUpdate = true;
+    if (!Array.isArray(windows.current.material)) {
+      windows.current.material.needsUpdate = true;
     }
     windows.current.computeBoundingSphere();
   }, [buildings, detailedWindows, dummy, windowRows]);
@@ -244,10 +238,10 @@ function BuildingInstances({
         <boxGeometry args={[1, 1, 1]} />
         <meshStandardMaterial
           vertexColors
-          emissive="#06131e"
-          emissiveIntensity={0.2}
-          metalness={0.82}
-          roughness={0.3}
+          emissive="#12384d"
+          emissiveIntensity={0.72}
+          metalness={0.58}
+          roughness={0.38}
         />
       </instancedMesh>
 
@@ -258,9 +252,9 @@ function BuildingInstances({
       >
         <boxGeometry args={[1, 1, 1]} />
         <meshStandardMaterial
-          vertexColors
-          emissive="#07121c"
-          emissiveIntensity={0.18}
+          color="#17445c"
+          emissive="#0e3043"
+          emissiveIntensity={0.7}
           metalness={0.7}
           roughness={0.35}
         />
@@ -272,7 +266,7 @@ function BuildingInstances({
         raycast={() => null}
       >
         <boxGeometry args={[1, 1, 1]} />
-        <meshBasicMaterial vertexColors toneMapped={false} />
+        <meshBasicMaterial color="#5be9ff" toneMapped={false} />
       </instancedMesh>
 
       {detailedWindows && (
@@ -282,7 +276,7 @@ function BuildingInstances({
           raycast={() => null}
         >
           <boxGeometry args={[1, 1, 1]} />
-          <meshBasicMaterial vertexColors toneMapped={false} />
+          <meshBasicMaterial color="#ffd477" toneMapped={false} />
         </instancedMesh>
       )}
     </group>
@@ -351,8 +345,8 @@ function Scene({
         attach="fog"
         args={["#02060c", Math.max(0.006, 0.027 * (44 / bounds.radius))]}
       />
-      <ambientLight intensity={0.42} color="#7394b8" />
-      <hemisphereLight args={["#659cff", "#02040a", 0.7]} />
+      <ambientLight intensity={0.72} color="#83b5d8" />
+      <hemisphereLight args={["#75baff", "#06101a", 1.05]} />
       <directionalLight
         position={[15, 24, 12]}
         intensity={1.4}
