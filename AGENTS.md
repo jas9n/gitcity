@@ -68,6 +68,10 @@ assemble, orbit/pan/zoom, hover for core metrics, select for details, and filter
 by language/activity/archive/popularity. The legend must explain the metric
 mapping.
 
+Selection is read-only. Opening a repository panel must not refetch or replace
+the metrics used to construct the city; estimated values remain explicitly
+labelled as estimated and stay stable while the panel is open.
+
 Maintain the provider-independent flow:
 
 `GitHub APIs → ingestion/cache → normalized repository signals → layout engine → instanced 3D renderer`

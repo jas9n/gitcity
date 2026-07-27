@@ -318,38 +318,6 @@ export function GitCityExperience() {
   }, []);
 
   useEffect(() => {
-    if (!selected?.metricsEstimated) return;
-    const controller = new AbortController();
-    const repositoryId = selected.id;
-
-    void (async () => {
-      try {
-        const query = new URLSearchParams({
-          owner: selected.fullName.split("/")[0],
-          repo: selected.fullName,
-          detail: "1",
-        });
-        const response = await fetch(`/api/github?${query.toString()}`, {
-          signal: controller.signal,
-        });
-        const payload = (await response.json()) as {
-          repository?: RepositorySignal;
-        };
-        if (!response.ok || !payload.repository) return;
-        setRepositories((current) =>
-          current.map((repo) =>
-            repo.id === repositoryId ? payload.repository! : repo,
-          ),
-        );
-      } catch {
-        // Estimated metrics remain useful when detailed enrichment is unavailable.
-      }
-    })();
-
-    return () => controller.abort();
-  }, [selected?.fullName, selected?.id, selected?.metricsEstimated]);
-
-  useEffect(() => {
     const loadFromLocation = () => {
       const params = new URLSearchParams(window.location.search);
       const repository = params.get("repo");
