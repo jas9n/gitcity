@@ -4,18 +4,19 @@ import {
   Canvas,
   type ThreeEvent,
   useFrame,
+  useThree,
 } from "@react-three/fiber";
 import {
   Environment,
   Grid,
   OrbitControls,
-  Sparkles,
   Stars,
 } from "@react-three/drei";
 import { Bloom, EffectComposer, Vignette } from "@react-three/postprocessing";
 import {
   Suspense,
   useCallback,
+  useEffect,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -28,9 +29,9 @@ import {
   FogExp2,
   InstancedBufferAttribute,
   InstancedMesh,
-  Mesh,
   MeshBasicMaterial,
   Object3D,
+  Vector3,
 } from "three";
 import type { CityBuilding } from "@/lib/city-model";
 import { hashString } from "@/lib/city-model";
@@ -49,6 +50,12 @@ type CityBounds = {
   depth: number;
   radius: number;
   height: number;
+};
+
+type CityFraming = {
+  desiredDistance: number;
+  maxDistance: number;
+  fogDensity: number;
 };
 
 type SurfaceTone = "default" | "hovered" | "selected";
@@ -305,7 +312,7 @@ function BuildingSurfaceBatch({
       camera.position.z - batchCenter.z,
     );
     const distantLift = Math.min(
-      0.09,
+      0.11,
       Math.max(0, (cameraDistance - 65) / 500),
     );
     surfaceMaterial.current?.color
@@ -865,48 +872,130 @@ function BuildingInstances({
   );
 }
 
-function TrafficLines({
-  reduceMotion,
-  center,
-}: {
-  reduceMotion: boolean;
-  center: CityBounds["center"];
-}) {
-  const eastWest = useRef<Mesh>(null);
-  const northSouth = useRef<Mesh>(null);
+function calculateCityFraming(
+  bounds: CityBounds,
+  viewportWidth: number,
+  viewportHeight: number,
+): CityFraming {
+  const verticalFov = (45 * Math.PI) / 180;
+  const aspect = Math.max(
+    0.5,
+    viewportWidth / Math.max(1, viewportHeight),
+  );
+  const horizontalFov =
+    2 * Math.atan(Math.tan(verticalFov / 2) * aspect);
+  const widthDistance =
+    (bounds.width * 0.56) / Math.tan(horizontalFov / 2);
+  const projectedVerticalSpan =
+    bounds.height + bounds.depth * 0.56;
+  const heightDistance =
+    (projectedVerticalSpan * 0.56) / Math.tan(verticalFov / 2);
+  const fittedDistance = Math.min(
+    1_000,
+    Math.max(62, widthDistance, heightDistance, bounds.radius * 1.18),
+  );
+  const previousMaxDistance = Math.min(
+    1_040,
+    Math.max(72, fittedDistance * 1.06, bounds.height * 2.2),
+  );
+  const maxDistance = previousMaxDistance * 0.9;
+  const desiredDistance = Math.min(fittedDistance, maxDistance);
 
-  useFrame((state) => {
-    if (reduceMotion) return;
-    const time = state.clock.elapsedTime;
-    if (eastWest.current) {
-      eastWest.current.position.x = center[0] + ((time * 3.8 + 28) % 56) - 28;
+  return {
+    desiredDistance,
+    maxDistance,
+    // Preserve atmospheric depth while keeping roughly 9% of the city color
+    // visible through fog at the furthest permitted orbit distance.
+    fogDensity: Math.min(0.02, 1.55 / maxDistance),
+  };
+}
+
+function CityCameraControls({
+  bounds,
+  framing,
+  cityKey,
+  selectedId,
+  reduceMotion,
+}: {
+  bounds: CityBounds;
+  framing: CityFraming;
+  cityKey: string;
+  selectedId: CityBuilding["id"] | null;
+  reduceMotion: boolean;
+}) {
+  const { camera } = useThree();
+  const userInteracted = useRef(false);
+  const activeCityKey = useRef(cityKey);
+  const framingActive = useRef(false);
+  const targetDistance = useRef(framing.desiredDistance);
+  const targetLookAt = useRef(new Vector3());
+  const cameraOffset = useRef(new Vector3());
+  const verticalTarget = Math.max(
+    4.8,
+    Math.min(9.5, bounds.height * 0.32),
+  );
+  const target = useMemo(
+    () => new Vector3(bounds.center[0], verticalTarget, bounds.center[2]),
+    [bounds.center, verticalTarget],
+  );
+
+  useEffect(() => {
+    if (activeCityKey.current !== cityKey) {
+      activeCityKey.current = cityKey;
+      userInteracted.current = false;
     }
-    if (northSouth.current) {
-      northSouth.current.position.z = center[2] + ((time * 3.1 + 24) % 48) - 24;
+    if (userInteracted.current) return;
+
+    targetDistance.current = framing.desiredDistance;
+    targetLookAt.current.copy(target);
+    framingActive.current = true;
+  }, [cityKey, framing.desiredDistance, target]);
+
+  useFrame((_, delta) => {
+    if (!framingActive.current) return;
+    const easing = reduceMotion ? 1 : 1 - Math.exp(-delta * 4.2);
+    const offset = cameraOffset.current
+      .copy(camera.position)
+      .sub(targetLookAt.current);
+    const currentDistance = offset.length();
+    if (currentDistance < 0.001) {
+      offset.set(31, 20, 38).normalize();
+    } else {
+      offset.multiplyScalar(1 / currentDistance);
+    }
+    const nextDistance =
+      currentDistance +
+      (targetDistance.current - currentDistance) * easing;
+    camera.position
+      .copy(targetLookAt.current)
+      .addScaledVector(offset, nextDistance);
+    camera.lookAt(targetLookAt.current);
+    if (Math.abs(nextDistance - targetDistance.current) < 0.05) {
+      camera.position
+        .copy(targetLookAt.current)
+        .addScaledVector(offset, targetDistance.current);
+      framingActive.current = false;
     }
   });
 
   return (
-    <>
-      <mesh ref={eastWest} position={[center[0] - 25, 0.12, center[2] + 7.9]}>
-        <sphereGeometry args={[0.055, 8, 8]} />
-        <meshBasicMaterial
-          color="#ff5fd1"
-          toneMapped={false}
-          blending={AdditiveBlending}
-        />
-        <pointLight color="#ff5fd1" intensity={6} distance={2.2} />
-      </mesh>
-      <mesh ref={northSouth} position={[center[0] - 7.9, 0.12, center[2] - 22]}>
-        <sphereGeometry args={[0.055, 8, 8]} />
-        <meshBasicMaterial
-          color="#53e5ff"
-          toneMapped={false}
-          blending={AdditiveBlending}
-        />
-        <pointLight color="#53e5ff" intensity={6} distance={2.2} />
-      </mesh>
-    </>
+    <OrbitControls
+      makeDefault
+      target={[target.x, target.y, target.z]}
+      minDistance={15}
+      maxDistance={framing.maxDistance}
+      minPolarAngle={0.55}
+      maxPolarAngle={1.38}
+      enablePan={bounds.radius > 52}
+      enableDamping
+      dampingFactor={0.055}
+      autoRotate={!reduceMotion && selectedId === null}
+      autoRotateSpeed={0.24}
+      onStart={() => {
+        userInteracted.current = true;
+        framingActive.current = false;
+      }}
+    />
   );
 }
 
@@ -917,23 +1006,23 @@ function Scene({
   onHover,
   reduceMotion,
 }: CitySceneProps) {
+  const { size } = useThree();
   const bounds = useMemo(() => calculateBounds(buildings), [buildings]);
-  const maxDistance = Math.max(
-    58,
-    bounds.radius * 1.6,
-    bounds.height * 2.2,
+  const framing = useMemo(
+    () => calculateCityFraming(bounds, size.width, size.height),
+    [bounds, size.height, size.width],
   );
-  const verticalTarget = Math.max(
-    4.8,
-    Math.min(9.5, bounds.height * 0.32),
-  );
+  const cityKey =
+    buildings[0]?.fullName.split("/")[0].toLowerCase() ?? "empty-city";
+  const groundWidth = Math.max(bounds.width + 120, bounds.width * 1.85);
+  const groundDepth = Math.max(bounds.depth + 120, bounds.depth * 1.85);
 
   return (
     <>
       <color attach="background" args={["#02060c"]} />
       <fogExp2
         attach="fog"
-        args={["#02060c", Math.max(0.006, 0.027 * (44 / bounds.radius))]}
+        args={["#02060c", framing.fogDensity]}
       />
       <ambientLight intensity={0.792} color="#83b5d8" />
       <hemisphereLight args={["#75baff", "#06101a", 1.155]} />
@@ -950,27 +1039,10 @@ function Scene({
         radius={Math.max(90, bounds.radius * 1.8)}
         depth={42}
         count={1100}
-        factor={2}
+        factor={2.15}
         saturation={0.4}
         fade
-        speed={reduceMotion ? 0 : 0.15}
-      />
-      <Sparkles
-        count={Math.min(180, 70 + Math.floor(buildings.length / 12))}
-        scale={[
-          bounds.width * 0.72,
-          Math.max(18, bounds.height * 1.05),
-          bounds.depth * 0.72,
-        ]}
-        size={1.1}
-        speed={reduceMotion ? 0 : 0.16}
-        opacity={0.2}
-        color="#6edfff"
-        position={[
-          bounds.center[0],
-          Math.max(8, bounds.height * 0.42),
-          bounds.center[2],
-        ]}
+        speed={0}
       />
 
       <group onClick={() => onHover(null)}>
@@ -979,7 +1051,7 @@ function Scene({
           rotation={[-Math.PI / 2, 0, 0]}
           receiveShadow
         >
-          <planeGeometry args={[bounds.width, bounds.depth]} />
+          <planeGeometry args={[groundWidth, groundDepth]} />
           <meshStandardMaterial
             color="#040a10"
             metalness={0.7}
@@ -988,15 +1060,15 @@ function Scene({
         </mesh>
         <Grid
           position={[bounds.center[0], 0.035, bounds.center[2]]}
-          args={[bounds.width, bounds.depth]}
+          args={[groundWidth, groundDepth]}
           cellSize={1}
-          cellThickness={0.2}
-          cellColor="#173147"
+          cellThickness={0.28}
+          cellColor="#1b3c55"
           sectionSize={8}
-          sectionThickness={1.1}
-          sectionColor="#1f6682"
-          fadeDistance={Math.max(62, bounds.radius * 1.25)}
-          fadeStrength={1.7}
+          sectionThickness={1.28}
+          sectionColor="#287895"
+          fadeDistance={Math.max(100, bounds.radius * 1.8)}
+          fadeStrength={1.58}
           infiniteGrid={false}
         />
         <BuildingInstances
@@ -1006,21 +1078,14 @@ function Scene({
           onHover={onHover}
           reduceMotion={reduceMotion}
         />
-        <TrafficLines reduceMotion={reduceMotion} center={bounds.center} />
       </group>
 
-      <OrbitControls
-        makeDefault
-        target={[bounds.center[0], verticalTarget, bounds.center[2]]}
-        minDistance={15}
-        maxDistance={maxDistance}
-        minPolarAngle={0.55}
-        maxPolarAngle={1.38}
-        enablePan={bounds.radius > 52}
-        enableDamping
-        dampingFactor={0.055}
-        autoRotate={!reduceMotion && selectedId === null}
-        autoRotateSpeed={0.24}
+      <CityCameraControls
+        bounds={bounds}
+        framing={framing}
+        cityKey={cityKey}
+        selectedId={selectedId}
+        reduceMotion={reduceMotion}
       />
       <Environment preset="city" environmentIntensity={0.242} />
       <EffectComposer multisampling={0}>

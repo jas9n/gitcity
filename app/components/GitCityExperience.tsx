@@ -553,7 +553,7 @@ export function GitCityExperience() {
         <Metric
           icon={<Users size={16} />}
           value={formatNumber(summary.totalContributors)}
-          label="Contributors"
+          label="Contributions"
           accent="#b995ff"
         />
         <Metric
@@ -568,123 +568,125 @@ export function GitCityExperience() {
         </div>
       </aside>
 
-      <nav className="filter-dock" aria-label="City filters">
-        <div className="view-mode">
-          {(["all", "active", "popular", "archived"] as FilterMode[]).map(
-            (mode) => (
-              <button
-                key={mode}
-                type="button"
-                className={filter === mode ? "active" : ""}
-                onClick={() => setFilter(mode)}
-              >
-                {mode}
-              </button>
-            ),
-          )}
-        </div>
-        <span className="dock-divider" />
-        <div className="language-menu" ref={languageMenuRef}>
-          <button
-            className="language-trigger"
-            type="button"
-            aria-haspopup="menu"
-            aria-expanded={languageOpen}
-            aria-controls="language-panel"
-            onClick={() => setLanguageOpen((open) => !open)}
-          >
-            <Code2 size={13} aria-hidden="true" />
-            <span>{language}</span>
-            <ChevronDown
-              className={languageOpen ? "open" : ""}
-              size={12}
-              aria-hidden="true"
-            />
-          </button>
-
-          {languageOpen && (
-            <div
-              className="language-panel"
-              id="language-panel"
-              role="menu"
-              aria-label="Filter by programming language"
-            >
-              <span className="language-panel-label">LANGUAGE DISTRICTS</span>
-              {["All languages", ...languages].map((item) => (
+      <div className="bottom-hud">
+        <nav className="filter-dock" aria-label="City filters">
+          <div className="view-mode">
+            {(["all", "active", "popular", "archived"] as FilterMode[]).map(
+              (mode) => (
                 <button
-                  key={item}
+                  key={mode}
                   type="button"
-                  role="menuitemradio"
-                  aria-checked={language === item}
-                  className={language === item ? "active" : ""}
-                  onClick={() => {
-                    setLanguage(item);
-                    setLanguageOpen(false);
-                  }}
+                  className={filter === mode ? "active" : ""}
+                  onClick={() => setFilter(mode)}
                 >
-                  <span className="language-monogram">
-                    {item === "All languages"
-                      ? "ALL"
-                      : item.slice(0, 2).toUpperCase()}
-                  </span>
-                  <span>{item}</span>
-                  <Check size={12} aria-hidden="true" />
+                  {mode}
                 </button>
-              ))}
-            </div>
-          )}
-        </div>
-        <span className={`result-count ${isStreaming ? "streaming" : ""}`}>
-          {isStreaming
-            ? `${repositories.length.toLocaleString()} loaded`
-            : `${buildings.length.toLocaleString()} visible`}
-        </span>
-      </nav>
+              ),
+            )}
+          </div>
+          <span className="dock-divider" />
+          <div className="language-menu" ref={languageMenuRef}>
+            <button
+              className="language-trigger"
+              type="button"
+              aria-haspopup="menu"
+              aria-expanded={languageOpen}
+              aria-controls="language-panel"
+              onClick={() => setLanguageOpen((open) => !open)}
+            >
+              <Code2 size={13} aria-hidden="true" />
+              <span>{language}</span>
+              <ChevronDown
+                className={languageOpen ? "open" : ""}
+                size={12}
+                aria-hidden="true"
+              />
+            </button>
 
-      <div className="interaction-hint">
-        <Rotate3D size={15} />
-        <span>DRAG TO ORBIT</span>
-        <span className="hint-dot" />
-        <span>SCROLL TO ZOOM</span>
+            {languageOpen && (
+              <div
+                className="language-panel"
+                id="language-panel"
+                role="menu"
+                aria-label="Filter by programming language"
+              >
+                <span className="language-panel-label">LANGUAGE DISTRICTS</span>
+                {["All languages", ...languages].map((item) => (
+                  <button
+                    key={item}
+                    type="button"
+                    role="menuitemradio"
+                    aria-checked={language === item}
+                    className={language === item ? "active" : ""}
+                    onClick={() => {
+                      setLanguage(item);
+                      setLanguageOpen(false);
+                    }}
+                  >
+                    <span className="language-monogram">
+                      {item === "All languages"
+                        ? "ALL"
+                        : item.slice(0, 2).toUpperCase()}
+                    </span>
+                    <span>{item}</span>
+                    <Check size={12} aria-hidden="true" />
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          <span className={`result-count ${isStreaming ? "streaming" : ""}`}>
+            {isStreaming
+              ? `${repositories.length.toLocaleString()} loaded`
+              : `${buildings.length.toLocaleString()} visible`}
+          </span>
+        </nav>
+
+        <div className="interaction-hint">
+          <Rotate3D size={15} />
+          <span>DRAG TO ORBIT</span>
+          <span className="hint-dot" />
+          <span>SCROLL TO ZOOM</span>
+        </div>
+
+        <section className="legend" aria-label="Visual model legend">
+          <div>
+            <span className="legend-line legend-height" />
+            <p>
+              <strong>HEIGHT</strong>
+              Weighted activity
+            </p>
+          </div>
+          <div>
+            <span className="legend-line legend-windows" />
+            <p>
+              <strong>WINDOWS</strong>
+              Stars · contributions · activity
+            </p>
+          </div>
+          <div>
+            <span className="legend-line legend-beacon" />
+            <p>
+              <strong>BEACON</strong>
+              Recent push
+            </p>
+          </div>
+          <div>
+            <span className="legend-line legend-color" />
+            <p>
+              <strong>COLOR</strong>
+              Primary language
+            </p>
+          </div>
+          <div>
+            <span className="legend-line legend-footprint" />
+            <p>
+              <strong>FORM</strong>
+              Size · archived dark
+            </p>
+          </div>
+        </section>
       </div>
-
-      <section className="legend" aria-label="Visual model legend">
-        <div>
-          <span className="legend-line legend-height" />
-          <p>
-            <strong>HEIGHT</strong>
-            Weighted activity
-          </p>
-        </div>
-        <div>
-          <span className="legend-line legend-windows" />
-          <p>
-            <strong>WINDOWS</strong>
-            Stars · people · activity
-          </p>
-        </div>
-        <div>
-          <span className="legend-line legend-beacon" />
-          <p>
-            <strong>BEACON</strong>
-            Recent push
-          </p>
-        </div>
-        <div>
-          <span className="legend-line legend-color" />
-          <p>
-            <strong>COLOR</strong>
-            Primary language
-          </p>
-        </div>
-        <div>
-          <span className="legend-line legend-footprint" />
-          <p>
-            <strong>FORM</strong>
-            Size · archived dark
-          </p>
-        </div>
-      </section>
 
       {hovered && !selected && (
         <div className="hover-card" role="status">
@@ -735,7 +737,7 @@ export function GitCityExperience() {
               value={selected.commits30d}
             />
             <PanelStat label="Stars" value={formatNumber(selected.stars)} />
-            <PanelStat label="Contributors" value={selected.contributorCount} />
+            <PanelStat label="Contributions" value={selected.contributorCount} />
           </div>
 
           <div className="building-profile">
@@ -754,7 +756,7 @@ export function GitCityExperience() {
             <div className="profile-row">
               <span>Illumination</span>
               <strong>
-                {Math.round(selected.brightness * 100)}% people ·{" "}
+                {Math.round(selected.brightness * 100)}% contributions ·{" "}
                 {Math.round(selected.illumination * 100)}% activity
               </strong>
             </div>
@@ -779,7 +781,7 @@ export function GitCityExperience() {
           </a>
           <p className="formula-note">
             Activity floors establish the window rows and stars can increase
-            their three-pane capacity. Contributors set potential occupancy,
+            their three-pane capacity. Contributions set potential occupancy,
             while weighted 30-day activity controls how many panes illuminate
             and how strongly they glow. Repository size sets footprint, recent
             pushes power the beacon, and archived projects stay dark.

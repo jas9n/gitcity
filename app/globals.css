@@ -654,12 +654,23 @@ a:focus-visible {
   font-weight: 520;
 }
 
-.filter-dock {
+.bottom-hud {
   position: absolute;
   z-index: 28;
-  left: 50%;
-  bottom: 28px;
-  transform: translateX(-50%);
+  right: 32px;
+  bottom: 27px;
+  left: 32px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: clamp(12px, 1.5vw, 28px);
+  pointer-events: none;
+}
+
+.filter-dock {
+  position: relative;
+  z-index: 2;
+  justify-self: start;
   min-width: 530px;
   height: 44px;
   display: flex;
@@ -670,6 +681,7 @@ a:focus-visible {
   background: rgba(4, 11, 18, 0.82);
   box-shadow: 0 18px 70px rgba(0, 0, 0, 0.46);
   backdrop-filter: blur(20px);
+  pointer-events: auto;
 }
 
 .view-mode {
@@ -835,10 +847,7 @@ a:focus-visible {
 }
 
 .interaction-hint {
-  position: absolute;
-  z-index: 20;
-  left: 37px;
-  bottom: 33px;
+  justify-self: center;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -846,6 +855,7 @@ a:focus-visible {
   font-family: var(--font-geist-mono), monospace;
   font-size: 7px;
   letter-spacing: 0.12em;
+  white-space: nowrap;
   pointer-events: none;
 }
 
@@ -862,10 +872,7 @@ a:focus-visible {
 }
 
 .legend {
-  position: absolute;
-  z-index: 20;
-  right: 32px;
-  bottom: 27px;
+  justify-self: end;
   display: flex;
   gap: 20px;
   padding: 9px 12px;
@@ -1316,6 +1323,11 @@ a:focus-visible {
 }
 
 @media (max-width: 760px) {
+  .bottom-hud {
+    inset: 0;
+    display: block;
+  }
+
   .experience-shell {
     min-height: 620px;
   }
@@ -1414,6 +1426,7 @@ a:focus-visible {
   }
 
   .filter-dock {
+    position: absolute;
     left: 12px;
     right: 12px;
     bottom: 17px;
@@ -1438,6 +1451,7 @@ a:focus-visible {
   }
 
   .interaction-hint {
+    position: absolute;
     left: 18px;
     bottom: 77px;
   }
