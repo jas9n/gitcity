@@ -48,7 +48,7 @@ export async function writeGithubCache(
   try {
     await redis.set(key, payload, { px: ttlMs });
   } catch {
-    // The city remains available through GitHub and Vercel's data cache if
+    // The city remains available through GitHub and platform cache headers if
     // Redis is temporarily unavailable or has not been configured locally.
   }
 
