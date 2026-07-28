@@ -399,10 +399,18 @@ export function buildCity(
       Math.min(32, Math.round(height / 0.82)),
     );
     const activityWindowRows = height < 3.2 ? 3 : levelCount;
-    const starWindowRows = Math.max(
+    const starSignalRows = Math.max(
       3,
       Math.min(18, Math.round(3 + starsNormalized * 15)),
     );
+    // Stars can add visible capacity, but never more rows than the façade can
+    // carry legibly. Activity rows already scale with height, so this cap only
+    // prevents popular low-rises from compressing many tiny panes together.
+    const starWindowCapacity = Math.max(
+      3,
+      Math.min(18, Math.round(3 + Math.max(0, height - 1.4) * 0.9)),
+    );
+    const starWindowRows = Math.min(starSignalRows, starWindowCapacity);
     const windowRows = Math.max(activityWindowRows, starWindowRows);
     const brightness = repo.archived ? 0 : contributorsNormalized;
     const illumination = repo.archived

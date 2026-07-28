@@ -200,6 +200,8 @@ describe("city model", () => {
       }),
     ]);
     expect(starCity[1].windowRows).toBeGreaterThan(starCity[0].windowRows);
+    expect(starCity[0].windowRows).toBe(3);
+    expect(starCity[1].windowRows).toBe(4);
     expect(starCity.every((building) => building.windowCount % 3 === 0)).toBe(
       true,
     );
