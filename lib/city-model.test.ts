@@ -108,6 +108,39 @@ describe("city model", () => {
     expect(distance).toBeGreaterThan(3.1);
   });
 
+  it("forms a blocky circular conglomerate with taller buildings near the core", () => {
+    const city = buildCity(
+      Array.from({ length: 144 }, (_, index) =>
+        repo({
+          id: index,
+          fullName: `radial/repository-${index}`,
+          name: `repository-${index}`,
+          language: ["TypeScript", "Python", "Go", "Rust"][index % 4],
+          commits30d: 144 - index,
+        }),
+      ),
+    );
+    const byActivity = [...city].sort(
+      (a, b) => b.activityScore - a.activityScore,
+    );
+    const radius = (building: (typeof city)[number]) =>
+      Math.hypot(building.position[0], building.position[2]);
+    const innerMean =
+      byActivity.slice(0, 36).reduce((total, building) => total + radius(building), 0) /
+      36;
+    const outerMean =
+      byActivity.slice(-36).reduce((total, building) => total + radius(building), 0) /
+      36;
+    const xExtent = Math.max(...city.map((building) => Math.abs(building.position[0])));
+    const zExtent = Math.max(...city.map((building) => Math.abs(building.position[2])));
+
+    expect(innerMean).toBeLessThan(outerMean * 0.65);
+    expect(Math.max(xExtent, zExtent) / Math.min(xExtent, zExtent)).toBeLessThan(
+      1.2,
+    );
+    expect(new Set(byActivity.slice(0, 12).map((building) => radius(building).toFixed(2))).size).toBeGreaterThan(4);
+  });
+
   it("uses core colors for common languages and gray for uncommon ones", () => {
     expect(languageColor("TypeScript")).toBe("#3178c6");
     expect(languageColor("Python")).toBe("#3572a5");

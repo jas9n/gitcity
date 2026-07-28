@@ -119,42 +119,120 @@ function createLayout(repositories: RepositorySignal[]) {
     const sizeDelta = (groups.get(b)?.length ?? 0) - (groups.get(a)?.length ?? 0);
     return sizeDelta || a.localeCompare(b);
   });
-  const orderedRepositories = languages.flatMap((language) =>
-    [...(groups.get(language) ?? [])].sort(
-      (a, b) =>
-        activityScore(b) - activityScore(a) || a.name.localeCompare(b.name),
-    ),
+  const languageAnchors = new Map<string, number>();
+  let languageOffset = 0;
+  languages.forEach((language) => {
+    const share = (groups.get(language)?.length ?? 0) / repositories.length;
+    languageAnchors.set(
+      language,
+      -Math.PI / 2 + (languageOffset + share / 2) * Math.PI * 2,
+    );
+    languageOffset += share;
+  });
+
+  const orderedRepositories = [...repositories].sort(
+    (a, b) =>
+      activityScore(b) - activityScore(a) ||
+      a.fullName.localeCompare(b.fullName),
   );
-  const gridWidth = Math.ceil(Math.sqrt(orderedRepositories.length));
-  const gridHeight = Math.ceil(orderedRepositories.length / gridWidth);
   const buildingSpacing = 3.55;
   const boulevardEvery = 6;
   const boulevardWidth = 1.15;
-  const gridSpan = (cells: number) =>
-    Math.max(0, cells - 1) * buildingSpacing +
-    Math.floor(Math.max(0, cells - 1) / boulevardEvery) * boulevardWidth;
   const placements = new Map<
     RepositorySignal["id"],
     { position: [number, number, number]; rotation: number }
   >();
 
-  orderedRepositories.forEach((repo, index) => {
-    const column = index % gridWidth;
-    const row = Math.floor(index / gridWidth);
+  // Filling the nearest square-grid cells first produces a dense "digital
+  // circle": a recognizable conglomerate with blocky streets and an irregular
+  // stepped perimeter instead of a rectangular row-major footprint.
+  const searchRadius = Math.ceil(Math.sqrt(repositories.length)) + 2;
+  const cells = Array.from(
+    { length: searchRadius * 2 + 1 },
+    (_, xIndex) => xIndex - searchRadius,
+  )
+    .flatMap((x) =>
+      Array.from(
+        { length: searchRadius * 2 + 1 },
+        (_, zIndex) => zIndex - searchRadius,
+      ).map((z) => ({
+        x,
+        z,
+        radius: Math.hypot(x, z),
+        angle: Math.atan2(z, x),
+      })),
+    )
+    .sort(
+      (a, b) =>
+        a.radius - b.radius ||
+        a.angle - b.angle ||
+        a.x - b.x ||
+        a.z - b.z,
+    )
+    .slice(0, repositories.length)
+    .map((cell, radialRank) => ({ ...cell, radialRank }));
+  const outerRadius = Math.max(1, ...cells.map((cell) => cell.radius));
+  const availableCells = [...cells];
+  const activityScatter = Math.min(
+    12,
+    Math.max(2, Math.sqrt(repositories.length) * 0.45),
+  );
+  const angularDistance = (first: number, second: number) => {
+    const difference = Math.abs(first - second) % (Math.PI * 2);
+    return Math.min(difference, Math.PI * 2 - difference);
+  };
+  const streetCoordinate = (coordinate: number) =>
+    coordinate * buildingSpacing +
+    Math.sign(coordinate) *
+      Math.floor(Math.abs(coordinate) / boulevardEvery) *
+      boulevardWidth;
+
+  orderedRepositories.forEach((repo, activityRank) => {
     const seed = hashString(repo.fullName);
+    const rankNoise = ((seed >>> 16) & 255) / 255;
+    const tallBand = Math.max(3, Math.ceil(repositories.length * 0.15));
+    const scatter =
+      activityRank < tallBand
+        ? rankNoise * activityScatter
+        : (rankNoise - 0.5) * activityScatter * 2;
+    const targetRank = clamp(
+      activityRank + scatter,
+      0,
+      repositories.length - 1,
+    );
+    const districtAngle =
+      languageAnchors.get(repo.language || "Other") ?? -Math.PI / 2;
+    let bestCellIndex = 0;
+    let bestCost = Infinity;
+
+    availableCells.forEach((cell, cellIndex) => {
+      const radialCost =
+        (Math.abs(cell.radialRank - targetRank) /
+          Math.max(1, repositories.length - 1)) *
+        5;
+      // Angle matters progressively more away from the core, producing broad,
+      // readable language neighborhoods without turning them into rigid slices.
+      const districtCost =
+        (angularDistance(cell.angle, districtAngle) / Math.PI) *
+        1.35 *
+        Math.sqrt(cell.radius / outerRadius);
+      const tieBreak =
+        (hashString(`${repo.fullName}:${cell.x}:${cell.z}`) % 997) / 997_000;
+      const cost = radialCost + districtCost + tieBreak;
+      if (cost < bestCost) {
+        bestCost = cost;
+        bestCellIndex = cellIndex;
+      }
+    });
+
+    const [cell] = availableCells.splice(bestCellIndex, 1);
     const jitterX = ((seed & 255) / 255 - 0.5) * 0.3;
     const jitterZ = (((seed >> 8) & 255) / 255 - 0.5) * 0.3;
     placements.set(repo.id, {
       position: [
-        column * buildingSpacing +
-          Math.floor(column / boulevardEvery) * boulevardWidth -
-          gridSpan(gridWidth) / 2 +
-          jitterX,
+        streetCoordinate(cell.x) + jitterX,
         0,
-        row * buildingSpacing +
-          Math.floor(row / boulevardEvery) * boulevardWidth -
-          gridSpan(gridHeight) / 2 +
-          jitterZ,
+        streetCoordinate(cell.z) + jitterZ,
       ],
       rotation: ((seed % 5) - 2) * 0.014,
     });
