@@ -15,6 +15,7 @@ import {
 import { Bloom, EffectComposer, Vignette } from "@react-three/postprocessing";
 import {
   Suspense,
+  useCallback,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -25,6 +26,7 @@ import {
   Color,
   DynamicDrawUsage,
   FogExp2,
+  InstancedBufferAttribute,
   InstancedMesh,
   Mesh,
   MeshBasicMaterial,
@@ -60,9 +62,121 @@ type WindowSlot = {
   side: number;
 };
 
+type ConstructionTiming = {
+  start: number;
+  duration: number;
+};
+
+type ConstructionController = {
+  enabled: boolean;
+  time: { current: { value: number } };
+  timingFor: (building: CityBuilding) => ConstructionTiming;
+};
+
+type CompiledShader = Parameters<MeshBasicMaterial["onBeforeCompile"]>[0];
+
 const WINDOW_FACADE_OFFSET = 0.04;
 const BEACON_HEIGHT = 1.2;
 const BEACON_ROOF_GAP = 0.05;
+const CONSTRUCTION_ANIMATION_ENABLED =
+  process.env.NEXT_PUBLIC_CITY_CONSTRUCTION_ANIMATION !== "0";
+const CONSTRUCTION_SHADER_KEY = "git-city-construction-v1";
+const CONSTRUCTION_START_ATTRIBUTE = "instanceConstructionStart";
+const CONSTRUCTION_DURATION_ATTRIBUTE = "instanceConstructionDuration";
+
+function setConstructionAttributes(
+  mesh: InstancedMesh,
+  buildings: CityBuilding[],
+  construction: ConstructionController,
+  phase: "building" | "beacon" = "building",
+) {
+  if (!construction.enabled) return;
+
+  const starts = new Float32Array(buildings.length);
+  const durations = new Float32Array(buildings.length);
+  buildings.forEach((building, index) => {
+    const timing = construction.timingFor(building);
+    starts[index] =
+      phase === "beacon"
+        ? timing.start + timing.duration * 0.82
+        : timing.start;
+    durations[index] = phase === "beacon" ? 0.34 : timing.duration;
+  });
+  mesh.geometry.setAttribute(
+    CONSTRUCTION_START_ATTRIBUTE,
+    new InstancedBufferAttribute(starts, 1),
+  );
+  mesh.geometry.setAttribute(
+    CONSTRUCTION_DURATION_ATTRIBUTE,
+    new InstancedBufferAttribute(durations, 1),
+  );
+}
+
+function patchConstructionShader(
+  shader: CompiledShader,
+  construction: ConstructionController,
+) {
+  shader.uniforms.cityConstructionTime = construction.time.current;
+  shader.vertexShader = shader.vertexShader
+    .replace(
+      "void main() {",
+      `
+attribute float ${CONSTRUCTION_START_ATTRIBUTE};
+attribute float ${CONSTRUCTION_DURATION_ATTRIBUTE};
+uniform float cityConstructionTime;
+
+void main() {`,
+    )
+    .replace(
+      "#include <project_vertex>",
+      `
+vec4 mvPosition = vec4( transformed, 1.0 );
+#ifdef USE_BATCHING
+  mvPosition = batchingMatrix * mvPosition;
+#endif
+#ifdef USE_INSTANCING
+  mvPosition = instanceMatrix * mvPosition;
+#endif
+
+float constructionProgress = clamp(
+  (cityConstructionTime - ${CONSTRUCTION_START_ATTRIBUTE}) /
+    max(0.001, ${CONSTRUCTION_DURATION_ATTRIBUTE}),
+  0.0,
+  1.0
+);
+float constructionEase =
+  1.0 - pow(1.0 - constructionProgress, 3.0);
+float constructionSettle =
+  sin(constructionProgress * 3.14159265) *
+  (1.0 - constructionProgress) *
+  0.025;
+mvPosition.y *= max(0.001, constructionEase + constructionSettle);
+
+mvPosition = modelViewMatrix * mvPosition;
+gl_Position = projectionMatrix * mvPosition;
+`,
+    );
+}
+
+function useConstructionMaterial(construction: ConstructionController) {
+  const onBeforeCompile = useCallback(
+    (shader: CompiledShader) => {
+      if (construction.enabled) {
+        patchConstructionShader(shader, construction);
+      }
+    },
+    [construction],
+  );
+  const customProgramCacheKey = useCallback(
+    () =>
+      construction.enabled
+        ? CONSTRUCTION_SHADER_KEY
+        : `${CONSTRUCTION_SHADER_KEY}-disabled`,
+    [construction.enabled],
+  );
+
+  return { onBeforeCompile, customProgramCacheKey };
+}
 
 const WINDOW_STYLES: Record<
   WindowTone,
@@ -138,10 +252,12 @@ function BuildingSurfaceBatch({
   buildings,
   color,
   tone,
+  construction,
 }: {
   buildings: CityBuilding[];
   color: string;
   tone: SurfaceTone;
+  construction: ConstructionController;
 }) {
   const surfaces = useRef<InstancedMesh>(null);
   const roofs = useRef<InstancedMesh>(null);
@@ -177,6 +293,7 @@ function BuildingSurfaceBatch({
     [color, tone],
   );
   const distantTint = useMemo(() => new Color("#d5e9f4"), []);
+  const constructionMaterial = useConstructionMaterial(construction);
 
   useFrame(({ camera }) => {
     const cameraDistance = Math.hypot(
@@ -229,9 +346,11 @@ function BuildingSurfaceBatch({
     });
     surfaces.current.instanceMatrix.needsUpdate = true;
     roofs.current.instanceMatrix.needsUpdate = true;
+    setConstructionAttributes(surfaces.current, buildings, construction);
+    setConstructionAttributes(roofs.current, buildings, construction);
     surfaces.current.computeBoundingSphere();
     roofs.current.computeBoundingSphere();
-  }, [buildings, dummy]);
+  }, [buildings, construction, dummy]);
 
   return (
     <>
@@ -245,6 +364,8 @@ function BuildingSurfaceBatch({
           ref={surfaceMaterial}
           color={displayColor}
           toneMapped={false}
+          onBeforeCompile={constructionMaterial.onBeforeCompile}
+          customProgramCacheKey={constructionMaterial.customProgramCacheKey}
         />
       </instancedMesh>
       <instancedMesh
@@ -257,6 +378,8 @@ function BuildingSurfaceBatch({
           ref={roofMaterial}
           color={displayColor}
           toneMapped={false}
+          onBeforeCompile={constructionMaterial.onBeforeCompile}
+          customProgramCacheKey={constructionMaterial.customProgramCacheKey}
         />
       </instancedMesh>
     </>
@@ -267,14 +390,17 @@ function RooftopBeaconBatch({
   buildings,
   color,
   reduceMotion,
+  construction,
 }: {
   buildings: CityBuilding[];
   color: string;
   reduceMotion: boolean;
+  construction: ConstructionController;
 }) {
   const beacons = useRef<InstancedMesh>(null);
   const beaconMaterial = useRef<MeshBasicMaterial>(null);
   const dummy = useMemo(() => new Object3D(), []);
+  const constructionMaterial = useConstructionMaterial(construction);
 
   useLayoutEffect(() => {
     if (!beacons.current) return;
@@ -291,8 +417,14 @@ function RooftopBeaconBatch({
       beacons.current!.setMatrixAt(index, dummy.matrix);
     });
     beacons.current.instanceMatrix.needsUpdate = true;
+    setConstructionAttributes(
+      beacons.current,
+      buildings,
+      construction,
+      "beacon",
+    );
     beacons.current.computeBoundingSphere();
-  }, [buildings, dummy]);
+  }, [buildings, construction, dummy]);
 
   useFrame((state) => {
     if (!beaconMaterial.current) return;
@@ -316,6 +448,8 @@ function RooftopBeaconBatch({
         depthWrite={false}
         blending={AdditiveBlending}
         toneMapped={false}
+        onBeforeCompile={constructionMaterial.onBeforeCompile}
+        customProgramCacheKey={constructionMaterial.customProgramCacheKey}
       />
     </instancedMesh>
   );
@@ -324,9 +458,11 @@ function RooftopBeaconBatch({
 function RooftopBeacons({
   buildings,
   reduceMotion,
+  construction,
 }: {
   buildings: CityBuilding[];
   reduceMotion: boolean;
+  construction: ConstructionController;
 }) {
   const batches = useMemo(() => {
     const grouped = new Map<string, CityBuilding[]>();
@@ -345,6 +481,7 @@ function RooftopBeacons({
       buildings={batch}
       color={color}
       reduceMotion={reduceMotion}
+      construction={construction}
     />
   ));
 }
@@ -352,13 +489,20 @@ function RooftopBeacons({
 function WindowPaneBatch({
   slots,
   tone,
+  construction,
 }: {
   slots: WindowSlot[];
   tone: WindowTone;
+  construction: ConstructionController;
 }) {
   const windows = useRef<InstancedMesh>(null);
   const dummy = useMemo(() => new Object3D(), []);
   const style = WINDOW_STYLES[tone];
+  const slotBuildings = useMemo(
+    () => slots.map(({ building }) => building),
+    [slots],
+  );
+  const constructionMaterial = useConstructionMaterial(construction);
 
   useLayoutEffect(() => {
     if (!windows.current) return;
@@ -411,8 +555,13 @@ function WindowPaneBatch({
     });
 
     windows.current.instanceMatrix.needsUpdate = true;
+    setConstructionAttributes(
+      windows.current,
+      slotBuildings,
+      construction,
+    );
     windows.current.computeBoundingSphere();
-  }, [dummy, slots]);
+  }, [construction, dummy, slotBuildings, slots]);
 
   return (
     <instancedMesh
@@ -434,6 +583,8 @@ function WindowPaneBatch({
         blending={tone === "dark" ? undefined : AdditiveBlending}
         metalness={0.08}
         roughness={0.42}
+        onBeforeCompile={constructionMaterial.onBeforeCompile}
+        customProgramCacheKey={constructionMaterial.customProgramCacheKey}
       />
     </instancedMesh>
   );
@@ -450,6 +601,56 @@ function BuildingInstances({
   const bases = useRef<InstancedMesh>(null);
   const [hoveredInstance, setHoveredInstance] = useState<number | null>(null);
   const dummy = useMemo(() => new Object3D(), []);
+  const constructionTime = useRef({ value: 0 });
+  const currentConstructionTime = useRef(0);
+  const constructionTimings = useRef(
+    new Map<CityBuilding["id"], ConstructionTiming>(),
+  );
+  const constructionEnabled =
+    CONSTRUCTION_ANIMATION_ENABLED && !reduceMotion;
+  const timingFor = useCallback((building: CityBuilding) => {
+    const existing = constructionTimings.current.get(building.id);
+    if (existing) return existing;
+
+    const jitter =
+      ((hashString(`${building.fullName}:construction`) >>> 0) % 1000) /
+      1000;
+    const durationJitter =
+      ((hashString(`${building.fullName}:construction-duration`) >>> 0) %
+        1000) /
+      1000;
+    const neighborhoodWave =
+      (Math.sin(building.position[0] * 0.15) +
+        Math.cos(building.position[2] * 0.13) +
+        2) /
+      4;
+    const heightFactor = Math.min(1, building.height / 30);
+    const timing = {
+      start:
+        currentConstructionTime.current +
+        neighborhoodWave * 0.3 +
+        jitter * 0.2,
+      duration: 0.78 + heightFactor * 0.58 + durationJitter * 0.12,
+    };
+    constructionTimings.current.set(building.id, timing);
+    return timing;
+  }, []);
+  const construction = useMemo<ConstructionController>(
+    () => ({
+      enabled: constructionEnabled,
+      time: constructionTime,
+      timingFor,
+    }),
+    [constructionEnabled, constructionTime, timingFor],
+  );
+
+  useFrame((state) => {
+    currentConstructionTime.current = state.clock.elapsedTime;
+    constructionTime.current.value = constructionEnabled
+      ? state.clock.elapsedTime
+      : 1_000_000;
+  });
+
   const windowBatches = useMemo(() => {
     const batches = new Map<WindowTone, WindowSlot[]>([
       ["dark", []],
@@ -611,6 +812,7 @@ function BuildingInstances({
           buildings={batch.buildings}
           color={batch.color}
           tone={batch.tone}
+          construction={construction}
         />
       ))}
 
@@ -629,13 +831,18 @@ function BuildingInstances({
         />
       </instancedMesh>
 
-      <RooftopBeacons buildings={buildings} reduceMotion={reduceMotion} />
+      <RooftopBeacons
+        buildings={buildings}
+        reduceMotion={reduceMotion}
+        construction={construction}
+      />
 
       {windowBatches.map(([tone, slots]) => (
         <WindowPaneBatch
           key={tone}
           slots={slots}
           tone={tone}
+          construction={construction}
         />
       ))}
     </group>

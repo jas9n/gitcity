@@ -36,6 +36,11 @@ Copy `.env.example` to `.env.local` to configure local credentials. The app
 continues to run without Redis, but durable Explore caching is enabled when the
 Upstash REST credentials are present.
 
+The ground-up construction animation is enabled by default. To turn it off
+without changing code, set `NEXT_PUBLIC_CITY_CONSTRUCTION_ANIMATION=0` and
+restart or redeploy the app. Reduced-motion visitors automatically receive the
+completed city without the animation.
+
 ## Deploy to Vercel
 
 1. Push this repository to GitHub, GitLab, or Bitbucket.
@@ -49,6 +54,11 @@ Upstash REST credentials are present.
 4. Add `GITHUB_TOKEN` to Production and Preview for higher GitHub API limits.
 5. Deploy. Vercel uses `npm run build` and the Node.js requirement from
    `package.json`.
+
+For a quick animation rollback in Vercel, add
+`NEXT_PUBLIC_CITY_CONSTRUCTION_ANIMATION=0` to the affected environments and
+redeploy. Remove the variable, or set it to `1`, and redeploy to restore the
+animation.
 
 Run the same production checks locally before deploying:
 
