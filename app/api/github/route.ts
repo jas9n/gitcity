@@ -16,7 +16,7 @@ const REPOSITORY_PATTERN =
 const PAGE_SIZE = 100;
 const EXPLORE_CACHE_TTL = 24 * 60 * 60 * 1000;
 const GITHUB_TIMEOUT_MS = 12_000;
-const GITHUB_FETCH_ATTEMPTS = 2;
+const GITHUB_FETCH_ATTEMPTS = 3;
 
 type OwnerType = "organization" | "user";
 
@@ -59,28 +59,41 @@ type GitHubPagePayload = {
   cache: "durable" | "edge";
 };
 
-function githubHeaders() {
+function githubToken() {
+  return process.env.GITHUB_TOKEN
+    ?.trim()
+    .replace(/^Bearer\s+/i, "");
+}
+
+function githubHeaders(authenticated = true) {
   const headers: Record<string, string> = {
     Accept: "application/vnd.github+json",
     "X-GitHub-Api-Version": "2026-03-10",
     "User-Agent": "git-city-visualizer",
   };
-  if (process.env.GITHUB_TOKEN) {
-    headers.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
+  const token = githubToken();
+  if (authenticated && token) {
+    headers.Authorization = `Bearer ${token}`;
   }
   return headers;
 }
 
 async function fetchGitHub(path: string) {
   let lastError: unknown;
+  let authenticated = Boolean(githubToken());
 
   for (let attempt = 0; attempt < GITHUB_FETCH_ATTEMPTS; attempt += 1) {
     try {
       const response = await fetch(`${GITHUB_API}${path}`, {
-        headers: githubHeaders(),
-        next: { revalidate: 900 },
+        headers: githubHeaders(authenticated),
+        cache: "no-store",
         signal: AbortSignal.timeout(GITHUB_TIMEOUT_MS),
       });
+
+      if (response.status === 401 && authenticated) {
+        authenticated = false;
+        continue;
+      }
 
       if (response.status < 500 || attempt === GITHUB_FETCH_ATTEMPTS - 1) {
         return response;
