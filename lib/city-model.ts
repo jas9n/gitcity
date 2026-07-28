@@ -109,13 +109,15 @@ export function languageColor(language: string): string {
 function createLayout(repositories: RepositorySignal[]) {
   const groups = new Map<string, RepositorySignal[]>();
   repositories.forEach((repo) => {
-    const district = repo.language || "Other";
+    // Uncommon languages share the same neutral-color neighborhood rather than
+    // creating a collection of visually identical isolated districts.
+    const district = languageColor(repo.language || "Other");
     const group = groups.get(district) ?? [];
     group.push(repo);
     groups.set(district, group);
   });
 
-  const languages = [...groups.keys()].sort((a, b) => {
+  const districtKeys = [...groups.keys()].sort((a, b) => {
     const sizeDelta = (groups.get(b)?.length ?? 0) - (groups.get(a)?.length ?? 0);
     return sizeDelta || a.localeCompare(b);
   });
@@ -133,7 +135,7 @@ function createLayout(repositories: RepositorySignal[]) {
     radius: number;
     angle: number;
   };
-  const createDistrictCells = (count: number): LayoutCell[] => {
+  const createCityCells = (count: number): LayoutCell[] => {
     const searchRadius = Math.ceil(Math.sqrt(count)) + 2;
     const candidates: LayoutCell[] = [];
     for (let x = -searchRadius; x <= searchRadius; x += 1) {
@@ -148,78 +150,132 @@ function createLayout(repositories: RepositorySignal[]) {
     }
     return candidates
       .sort(
-        (a, b) =>
-          a.radius - b.radius ||
+        (a, b) => {
+          const aEdgeNoise =
+            ((hashString(`city-edge:${a.x}:${a.z}`) % 1000) / 1000 - 0.5) *
+            0.38;
+          const bEdgeNoise =
+            ((hashString(`city-edge:${b.x}:${b.z}`) % 1000) / 1000 - 0.5) *
+            0.38;
+          return (
+            a.radius +
+              aEdgeNoise -
+              (b.radius + bEdgeNoise) ||
           a.angle - b.angle ||
           a.x - b.x ||
-          a.z - b.z,
+            a.z - b.z
+          );
+        },
       )
       .slice(0, count);
   };
 
-  const districts = languages.map((language) => {
-    const cells = createDistrictCells(groups.get(language)?.length ?? 0);
+  // One uninterrupted grid keeps every neighborhood on the same street fabric.
+  // The slightly noisy perimeter avoids both a rectangle and a perfect disc.
+  const cityCells = createCityCells(repositories.length);
+  const outerRadius = Math.max(1, ...cityCells.map((cell) => cell.radius));
+  const districts = districtKeys.map((key) => {
     return {
-      language,
-      repositories: [...(groups.get(language) ?? [])],
-      cells,
-      radius: Math.max(0, ...cells.map((cell) => cell.radius)) + 0.62,
-      center: { x: 0, z: 0 },
+      key,
+      repositories: [...(groups.get(key) ?? [])],
+      cells: [] as LayoutCell[],
+      anchor: { x: 0, z: 0 },
     };
   });
 
-  // Pack the color districts as separate digital circles. The largest language
-  // anchors the city and smaller conglomerates take the nearest non-overlapping
-  // grid position, keeping the overall footprint compact without comparing
-  // every repository against every other open block.
-  const placedDistricts: typeof districts = [];
-  const districtGap = 1.35;
+  // Place neighborhood seeds close together, then let their blocks compete for
+  // the nearest open cells. This creates connected, irregular color districts
+  // with shared borders instead of separated circles.
+  const availableAnchors = new Set(
+    cityCells.map((cell) => `${cell.x}:${cell.z}`),
+  );
+  const goldenAngle = Math.PI * (3 - Math.sqrt(5));
   districts.forEach((district, districtIndex) => {
-    if (districtIndex > 0) {
-      const startAngle =
-        ((hashString(district.language) % 360) / 360) * Math.PI * 2;
-      let foundCenter = false;
-      const maxRing = Math.max(
-        8,
-        Math.ceil(
-          placedDistricts.reduce(
-            (total, placed) => total + placed.radius + districtGap,
-            district.radius,
-          ),
-        ),
-      );
-
-      for (let ring = 1; ring <= maxRing && !foundCenter; ring += 1) {
-        const samples = Math.max(8, Math.ceil(Math.PI * 2 * ring * 1.5));
-        const seen = new Set<string>();
-        for (let sample = 0; sample < samples; sample += 1) {
-          const angle = startAngle + (sample / samples) * Math.PI * 2;
-          const candidate = {
-            x: Math.round(Math.cos(angle) * ring),
-            z: Math.round(Math.sin(angle) * ring),
-          };
-          const candidateKey = `${candidate.x}:${candidate.z}`;
-          if (seen.has(candidateKey)) continue;
-          seen.add(candidateKey);
-
-          const hasRoom = placedDistricts.every(
-            (placed) =>
-              Math.hypot(
-                candidate.x - placed.center.x,
-                candidate.z - placed.center.z,
-              ) >=
-              district.radius + placed.radius + districtGap,
-          );
-          if (hasRoom) {
-            district.center = candidate;
-            foundCenter = true;
-            break;
-          }
-        }
+    const anchorRadius =
+      districtIndex === 0
+        ? 0
+        : outerRadius *
+          (0.12 +
+            0.26 *
+              Math.sqrt(
+                districtIndex / Math.max(1, districts.length - 1),
+              ));
+    const anchorAngle =
+      -Math.PI / 2 +
+      districtIndex * goldenAngle +
+      ((hashString(district.key) % 31) / 31 - 0.5) * 0.35;
+    const target = {
+      x: Math.cos(anchorAngle) * anchorRadius,
+      z: Math.sin(anchorAngle) * anchorRadius,
+    };
+    let nearestAnchor = cityCells[0];
+    let nearestDistance = Infinity;
+    cityCells.forEach((cell) => {
+      if (!availableAnchors.has(`${cell.x}:${cell.z}`)) return;
+      const distance = Math.hypot(cell.x - target.x, cell.z - target.z);
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        nearestAnchor = cell;
       }
-    }
-    placedDistricts.push(district);
+    });
+    district.anchor = { x: nearestAnchor.x, z: nearestAnchor.z };
+    availableAnchors.delete(`${nearestAnchor.x}:${nearestAnchor.z}`);
   });
+
+  const preferences = new Map<string, LayoutCell[]>();
+  districts.forEach((district) => {
+    preferences.set(
+      district.key,
+      [...cityCells].sort((a, b) => {
+        const distanceA = Math.hypot(
+          a.x - district.anchor.x,
+          a.z - district.anchor.z,
+        );
+        const distanceB = Math.hypot(
+          b.x - district.anchor.x,
+          b.z - district.anchor.z,
+        );
+        const edgeA =
+          ((hashString(`${district.key}:${a.x}:${a.z}`) % 1000) / 1000 - 0.5) *
+          0.9;
+        const edgeB =
+          ((hashString(`${district.key}:${b.x}:${b.z}`) % 1000) / 1000 - 0.5) *
+          0.9;
+        return (
+          distanceA +
+            edgeA -
+            (distanceB + edgeB) ||
+          a.radius - b.radius ||
+          a.angle - b.angle
+        );
+      }),
+    );
+  });
+
+  const claimedCells = new Set<string>();
+  const preferenceIndexes = new Map<string, number>();
+  let assignedCount = 0;
+  while (assignedCount < cityCells.length) {
+    districts.forEach((district) => {
+      if (district.cells.length >= district.repositories.length) return;
+      const orderedCells = preferences.get(district.key) ?? [];
+      let preferenceIndex = preferenceIndexes.get(district.key) ?? 0;
+      while (
+        preferenceIndex < orderedCells.length &&
+        claimedCells.has(
+          `${orderedCells[preferenceIndex].x}:${orderedCells[preferenceIndex].z}`,
+        )
+      ) {
+        preferenceIndex += 1;
+      }
+      const cell = orderedCells[preferenceIndex];
+      if (!cell) return;
+      district.cells.push(cell);
+      claimedCells.add(`${cell.x}:${cell.z}`);
+      preferenceIndexes.set(district.key, preferenceIndex + 1);
+      assignedCount += 1;
+    });
+  }
 
   const streetCoordinate = (coordinate: number) =>
     coordinate * buildingSpacing +
@@ -227,39 +283,71 @@ function createLayout(repositories: RepositorySignal[]) {
       Math.floor(Math.abs(coordinate) / boulevardEvery) *
       boulevardWidth;
 
-  placedDistricts.forEach((district) => {
-    const scatterRange = Math.min(
-      8,
-      Math.max(1.5, Math.sqrt(district.repositories.length) * 0.42),
+  districts.forEach((district) => {
+    const districtRadius = Math.max(
+      1,
+      ...district.cells.map((cell) =>
+        Math.hypot(
+          cell.x - district.anchor.x,
+          cell.z - district.anchor.z,
+        ),
+      ),
     );
+    const hotspotCount =
+      district.repositories.length >= 30
+        ? 3
+        : district.repositories.length >= 10
+          ? 2
+          : 1;
+    const hotspotSeed = hashString(district.key);
+    const hotspots = Array.from({ length: hotspotCount }, (_, index) => {
+      if (index === 0) return district.anchor;
+      const angle =
+        ((hotspotSeed % 360) / 360) * Math.PI * 2 +
+        (index / hotspotCount) * Math.PI * 2;
+      const radius = districtRadius * (index % 2 === 0 ? 0.62 : 0.44);
+      return {
+        x: district.anchor.x + Math.cos(angle) * radius,
+        z: district.anchor.z + Math.sin(angle) * radius,
+      };
+    });
+    const organicCells = [...district.cells].sort((a, b) => {
+      const priority = (cell: LayoutCell) => {
+        const hotspotDistance =
+          Math.min(
+            ...hotspots.map((hotspot) =>
+              Math.hypot(cell.x - hotspot.x, cell.z - hotspot.z),
+            ),
+          ) / districtRadius;
+        const centrality = cell.radius / outerRadius;
+        const texture =
+          (hashString(`height:${district.key}:${cell.x}:${cell.z}`) % 1000) /
+          1000;
+        return hotspotDistance * 0.34 + centrality * 0.2 + texture * 0.46;
+      };
+      return (
+        priority(a) - priority(b) ||
+        a.radius - b.radius ||
+        a.angle - b.angle
+      );
+    });
     const orderedRepositories = district.repositories
       .sort(
         (a, b) =>
           activityScore(b) - activityScore(a) ||
           a.fullName.localeCompare(b.fullName),
-      )
-      .map((repo, activityRank) => ({
-        repo,
-        placementRank:
-          activityRank +
-          (((hashString(repo.fullName) >>> 16) & 255) / 255) * scatterRange,
-      }))
-      .sort(
-        (a, b) =>
-          a.placementRank - b.placementRank ||
-          a.repo.fullName.localeCompare(b.repo.fullName),
       );
 
-    orderedRepositories.forEach(({ repo }, cellIndex) => {
-      const cell = district.cells[cellIndex];
+    orderedRepositories.forEach((repo, cellIndex) => {
+      const cell = organicCells[cellIndex];
       const seed = hashString(repo.fullName);
       const jitterX = ((seed & 255) / 255 - 0.5) * 0.3;
       const jitterZ = (((seed >> 8) & 255) / 255 - 0.5) * 0.3;
       placements.set(repo.id, {
         position: [
-          streetCoordinate(district.center.x + cell.x) + jitterX,
+          streetCoordinate(cell.x) + jitterX,
           0,
-          streetCoordinate(district.center.z + cell.z) + jitterZ,
+          streetCoordinate(cell.z) + jitterZ,
         ],
         rotation: ((seed % 5) - 2) * 0.014,
       });

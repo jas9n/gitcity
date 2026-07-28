@@ -108,7 +108,7 @@ describe("city model", () => {
     expect(distance).toBeGreaterThan(3.1);
   });
 
-  it("forms fast blocky conglomerates by language with taller local cores", () => {
+  it("interlaces organic color neighborhoods without creating skyline domes", () => {
     const city = buildCity(
       Array.from({ length: 144 }, (_, index) =>
         repo({
@@ -139,22 +139,13 @@ describe("city model", () => {
       const byActivity = [...district].sort(
         (a, b) => b.activityScore - a.activityScore,
       );
-      const center = districtCenters.get(language)!;
-      const localRadius = (building: (typeof city)[number]) =>
-        Math.hypot(
-          building.position[0] - center.x,
-          building.position[2] - center.z,
-        );
-      const innerMean =
-        byActivity
-          .slice(0, 9)
-          .reduce((total, building) => total + localRadius(building), 0) / 9;
-      const outerMean =
-        byActivity
-          .slice(-9)
-          .reduce((total, building) => total + localRadius(building), 0) / 9;
-
-      expect(innerMean).toBeLessThan(outerMean);
+      const tallX = byActivity.slice(0, 9).map((building) => building.position[0]);
+      const tallZ = byActivity.slice(0, 9).map((building) => building.position[2]);
+      const tallSpan = Math.hypot(
+        Math.max(...tallX) - Math.min(...tallX),
+        Math.max(...tallZ) - Math.min(...tallZ),
+      );
+      expect(tallSpan).toBeGreaterThan(12);
     });
 
     const centers = [...districtCenters.values()];
@@ -165,7 +156,19 @@ describe("city model", () => {
           .map((second) => Math.hypot(first.x - second.x, first.z - second.z)),
       ),
     );
-    expect(closestCenters).toBeGreaterThan(24);
+    const boundaryBuildings = city.filter((building) =>
+      city.some(
+        (neighbor) =>
+          neighbor.language !== building.language &&
+          Math.hypot(
+            neighbor.position[0] - building.position[0],
+            neighbor.position[2] - building.position[2],
+          ) < 5.4,
+      ),
+    );
+
+    expect(closestCenters).toBeLessThan(18);
+    expect(boundaryBuildings.length).toBeGreaterThan(city.length * 0.2);
   });
 
   it("uses core colors for common languages and gray for uncommon ones", () => {
