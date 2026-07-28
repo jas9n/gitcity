@@ -295,8 +295,8 @@ function RooftopBeaconBatch({
   useFrame((state) => {
     if (!beaconMaterial.current) return;
     beaconMaterial.current.opacity = reduceMotion
-      ? 0.72
-      : 0.58 + Math.sin(state.clock.elapsedTime * 2.2) * 0.18;
+      ? 0.8
+      : 0.64 + Math.sin(state.clock.elapsedTime * 2.2) * 0.18;
   });
 
   return (
@@ -310,7 +310,7 @@ function RooftopBeaconBatch({
         ref={beaconMaterial}
         color={color}
         transparent
-        opacity={0.72}
+        opacity={0.8}
         depthWrite={false}
         blending={AdditiveBlending}
         toneMapped={false}

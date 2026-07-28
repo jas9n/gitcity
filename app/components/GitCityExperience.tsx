@@ -696,10 +696,6 @@ export function GitCityExperience() {
               <strong>{selected.levelCount} activity floors</strong>
             </div>
             <div className="profile-row">
-              <span>Windows</span>
-              <strong>{selected.windowRows} rows × 3</strong>
-            </div>
-            <div className="profile-row">
               <span>Illumination</span>
               <strong>
                 {Math.round(selected.brightness * 100)}% people ·{" "}
