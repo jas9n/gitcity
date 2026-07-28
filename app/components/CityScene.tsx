@@ -23,19 +23,15 @@ import {
 import {
   AdditiveBlending,
   Color,
+  DynamicDrawUsage,
   FogExp2,
   InstancedMesh,
   Mesh,
   MeshBasicMaterial,
   Object3D,
-  StaticDrawUsage,
 } from "three";
 import type { CityBuilding } from "@/lib/city-model";
 import { hashString } from "@/lib/city-model";
-import {
-  cityPixelRatio,
-  visibleWindowRowCount,
-} from "@/lib/render-performance";
 
 type CitySceneProps = {
   buildings: CityBuilding[];
@@ -63,6 +59,8 @@ type WindowSlot = {
   rows: number;
   side: number;
 };
+
+const WINDOW_FACADE_OFFSET = 0.04;
 
 const WINDOW_STYLES: Record<
   WindowTone,
@@ -98,17 +96,6 @@ const WINDOW_STYLES: Record<
     opacity: 0.5,
   },
 };
-
-function surfaceDisplayColor(color: string, tone: SurfaceTone) {
-  const displayColor = new Color(color);
-  if (tone === "selected") {
-    return displayColor.lerp(new Color("#e4f5ff"), 0.12);
-  }
-  return displayColor.lerp(
-    new Color("#05080b"),
-    tone === "hovered" ? 0.46 : 0.24,
-  );
-}
 
 function calculateBounds(buildings: CityBuilding[]): CityBounds {
   if (buildings.length === 0) {
@@ -148,34 +135,31 @@ function calculateBounds(buildings: CityBuilding[]): CityBounds {
 function BuildingSurfaceBatch({
   buildings,
   color,
-  hoveredId,
-  selectedId,
+  tone,
 }: {
   buildings: CityBuilding[];
   color: string;
-  hoveredId: CityBuilding["id"] | null;
-  selectedId: CityBuilding["id"] | null;
+  tone: SurfaceTone;
 }) {
   const surfaces = useRef<InstancedMesh>(null);
   const roofs = useRef<InstancedMesh>(null);
-  const previousToneIds = useRef<{
-    hoveredId: CityBuilding["id"] | null;
-    selectedId: CityBuilding["id"] | null;
-  }>({ hoveredId: null, selectedId: null });
   const dummy = useMemo(() => new Object3D(), []);
-  const buildingIndexes = useMemo(
-    () =>
-      new Map(
-        buildings.map((building, index) => [building.id, index] as const),
-      ),
-    [buildings],
+  const displayColor = useMemo(
+    () => {
+      const languageColor = new Color(color);
+      if (tone === "selected") {
+        return languageColor.lerp(new Color("#e4f5ff"), 0.12);
+      }
+      return languageColor.lerp(
+        new Color("#05080b"),
+        tone === "hovered" ? 0.46 : 0.24,
+      );
+    },
+    [color, tone],
   );
 
   useLayoutEffect(() => {
     if (!surfaces.current || !roofs.current) return;
-    surfaces.current.instanceMatrix.setUsage(StaticDrawUsage);
-    roofs.current.instanceMatrix.setUsage(StaticDrawUsage);
-    const defaultColor = surfaceDisplayColor(color, "default");
     buildings.forEach((building, index) => {
       const emphasis = 1.002;
       dummy.position.set(
@@ -204,58 +188,12 @@ function BuildingSurfaceBatch({
       );
       dummy.updateMatrix();
       roofs.current!.setMatrixAt(index, dummy.matrix);
-      surfaces.current!.setColorAt(index, defaultColor);
-      roofs.current!.setColorAt(index, defaultColor);
     });
     surfaces.current.instanceMatrix.needsUpdate = true;
     roofs.current.instanceMatrix.needsUpdate = true;
-    if (surfaces.current.instanceColor) {
-      surfaces.current.instanceColor.needsUpdate = true;
-    }
-    if (roofs.current.instanceColor) {
-      roofs.current.instanceColor.needsUpdate = true;
-    }
     surfaces.current.computeBoundingSphere();
     roofs.current.computeBoundingSphere();
-  }, [buildings, color, dummy]);
-
-  useLayoutEffect(() => {
-    if (!surfaces.current || !roofs.current) return;
-    const previous = previousToneIds.current;
-    const affectedIds = new Set([
-      previous.hoveredId,
-      previous.selectedId,
-      hoveredId,
-      selectedId,
-    ]);
-    let changed = false;
-
-    affectedIds.forEach((id) => {
-      if (id === null) return;
-      const index = buildingIndexes.get(id);
-      if (index === undefined) return;
-      const tone: SurfaceTone =
-        id === selectedId
-          ? "selected"
-          : id === hoveredId
-            ? "hovered"
-            : "default";
-      const displayColor = surfaceDisplayColor(color, tone);
-      surfaces.current!.setColorAt(index, displayColor);
-      roofs.current!.setColorAt(index, displayColor);
-      changed = true;
-    });
-
-    if (changed) {
-      if (surfaces.current.instanceColor) {
-        surfaces.current.instanceColor.needsUpdate = true;
-      }
-      if (roofs.current.instanceColor) {
-        roofs.current.instanceColor.needsUpdate = true;
-      }
-    }
-    previousToneIds.current = { hoveredId, selectedId };
-  }, [buildingIndexes, color, hoveredId, selectedId]);
+  }, [buildings, dummy]);
 
   return (
     <>
@@ -266,10 +204,7 @@ function BuildingSurfaceBatch({
       >
         <boxGeometry args={[1, 1, 1]} />
         <meshBasicMaterial
-          color="#ffffff"
-          polygonOffset
-          polygonOffsetFactor={-1}
-          polygonOffsetUnits={-1}
+          color={displayColor}
           toneMapped={false}
         />
       </instancedMesh>
@@ -279,7 +214,7 @@ function BuildingSurfaceBatch({
         raycast={() => null}
       >
         <boxGeometry args={[1, 1, 1]} />
-        <meshBasicMaterial color="#ffffff" toneMapped={false} />
+        <meshBasicMaterial color={displayColor} toneMapped={false} />
       </instancedMesh>
     </>
   );
@@ -399,10 +334,12 @@ function WindowPaneBatch({
       const localX =
         side < 2
           ? lateral
-          : (side === 2 ? 1 : -1) * (building.width / 2 + 0.024);
+          : (side === 2 ? 1 : -1) *
+            (building.width / 2 + WINDOW_FACADE_OFFSET);
       const localZ =
         side < 2
-          ? (side === 0 ? 1 : -1) * (building.depth / 2 + 0.024)
+          ? (side === 0 ? 1 : -1) *
+            (building.depth / 2 + WINDOW_FACADE_OFFSET)
           : lateral;
       const cosine = Math.cos(building.rotation);
       const sine = Math.sin(building.rotation);
@@ -447,7 +384,10 @@ function WindowPaneBatch({
         emissiveIntensity={style.emissiveIntensity}
         transparent
         opacity={style.opacity}
-        depthWrite={false}
+        depthWrite={tone === "dark"}
+        polygonOffset
+        polygonOffsetFactor={-1}
+        polygonOffsetUnits={-2}
         blending={tone === "dark" ? undefined : AdditiveBlending}
         metalness={0.08}
         roughness={0.42}
@@ -476,12 +416,8 @@ function BuildingInstances({
     ]);
 
     buildings.forEach((building) => {
-      const visibleRows = visibleWindowRowCount(
-        building.windowRows,
-        buildings.length,
-      );
       for (let side = 0; side < 4; side += 1) {
-        for (let row = 0; row < visibleRows; row += 1) {
+        for (let row = 0; row < building.windowRows; row += 1) {
           for (let column = 0; column < 3; column += 1) {
             const seed = `${building.fullName}:${row}:${side}:${column}`;
             const occupancySample = (hashString(seed) % 1000) / 1000;
@@ -507,7 +443,7 @@ function BuildingInstances({
               building,
               column,
               row,
-              rows: visibleRows,
+              rows: building.windowRows,
               side,
             });
           }
@@ -522,22 +458,29 @@ function BuildingInstances({
   const languageBatches = useMemo(() => {
     const batches = new Map<
       string,
-      { color: string; buildings: CityBuilding[] }
+      { color: string; tone: SurfaceTone; buildings: CityBuilding[] }
     >();
     buildings.forEach((building) => {
       const color = building.archived ? "#252b30" : building.accent;
-      const batch = batches.get(color) ?? { color, buildings: [] };
+      const tone: SurfaceTone =
+        building.id === selectedId
+          ? "selected"
+          : building.id === hoveredId
+            ? "hovered"
+            : "default";
+      const key = `${color}:${tone}`;
+      const batch = batches.get(key) ?? { color, tone, buildings: [] };
       batch.buildings.push(building);
-      batches.set(color, batch);
+      batches.set(key, batch);
     });
     return [...batches.values()];
-  }, [buildings]);
+  }, [buildings, hoveredId, selectedId]);
 
   useLayoutEffect(() => {
     if (!bodies.current || !bases.current) return;
 
-    bodies.current.instanceMatrix.setUsage(StaticDrawUsage);
-    bases.current.instanceMatrix.setUsage(StaticDrawUsage);
+    bodies.current.instanceMatrix.setUsage(DynamicDrawUsage);
+    bases.current.instanceMatrix.setUsage(DynamicDrawUsage);
 
     buildings.forEach((building, index) => {
       dummy.position.set(
@@ -621,11 +564,10 @@ function BuildingInstances({
 
       {languageBatches.map((batch) => (
         <BuildingSurfaceBatch
-          key={batch.color}
+          key={`${batch.color}:${batch.tone}`}
           buildings={batch.buildings}
           color={batch.color}
-          hoveredId={hoveredId}
-          selectedId={selectedId}
+          tone={batch.tone}
         />
       ))}
 
@@ -831,10 +773,10 @@ function Scene({
 export function CityScene(props: CitySceneProps) {
   return (
     <Canvas
-      dpr={cityPixelRatio(props.buildings.length)}
+      dpr={[1, 1.7]}
       camera={{ position: [31, 29, 38], fov: 45, near: 0.1, far: 2000 }}
       gl={{ antialias: true, powerPreference: "high-performance" }}
-      shadows={props.buildings.length <= 450}
+      shadows
       onCreated={({ scene }) => {
         scene.fog = new FogExp2(new Color("#02060c"), 0.027);
       }}
