@@ -108,7 +108,7 @@ describe("city model", () => {
     expect(distance).toBeGreaterThan(3.1);
   });
 
-  it("forms a blocky circular conglomerate with taller buildings near the core", () => {
+  it("forms fast blocky conglomerates by language with taller local cores", () => {
     const city = buildCity(
       Array.from({ length: 144 }, (_, index) =>
         repo({
@@ -120,25 +120,52 @@ describe("city model", () => {
         }),
       ),
     );
-    const byActivity = [...city].sort(
-      (a, b) => b.activityScore - a.activityScore,
-    );
-    const radius = (building: (typeof city)[number]) =>
-      Math.hypot(building.position[0], building.position[2]);
-    const innerMean =
-      byActivity.slice(0, 36).reduce((total, building) => total + radius(building), 0) /
-      36;
-    const outerMean =
-      byActivity.slice(-36).reduce((total, building) => total + radius(building), 0) /
-      36;
-    const xExtent = Math.max(...city.map((building) => Math.abs(building.position[0])));
-    const zExtent = Math.max(...city.map((building) => Math.abs(building.position[2])));
+    const districtCenters = new Map<string, { x: number; z: number }>();
+    ["TypeScript", "Python", "Go", "Rust"].forEach((language) => {
+      const district = city.filter((building) => building.language === language);
+      districtCenters.set(language, {
+        x:
+          district.reduce(
+            (total, building) => total + building.position[0],
+            0,
+          ) / district.length,
+        z:
+          district.reduce(
+            (total, building) => total + building.position[2],
+            0,
+          ) / district.length,
+      });
 
-    expect(innerMean).toBeLessThan(outerMean * 0.65);
-    expect(Math.max(xExtent, zExtent) / Math.min(xExtent, zExtent)).toBeLessThan(
-      1.2,
+      const byActivity = [...district].sort(
+        (a, b) => b.activityScore - a.activityScore,
+      );
+      const center = districtCenters.get(language)!;
+      const localRadius = (building: (typeof city)[number]) =>
+        Math.hypot(
+          building.position[0] - center.x,
+          building.position[2] - center.z,
+        );
+      const innerMean =
+        byActivity
+          .slice(0, 9)
+          .reduce((total, building) => total + localRadius(building), 0) / 9;
+      const outerMean =
+        byActivity
+          .slice(-9)
+          .reduce((total, building) => total + localRadius(building), 0) / 9;
+
+      expect(innerMean).toBeLessThan(outerMean);
+    });
+
+    const centers = [...districtCenters.values()];
+    const closestCenters = Math.min(
+      ...centers.flatMap((first, firstIndex) =>
+        centers
+          .slice(firstIndex + 1)
+          .map((second) => Math.hypot(first.x - second.x, first.z - second.z)),
+      ),
     );
-    expect(new Set(byActivity.slice(0, 12).map((building) => radius(building).toFixed(2))).size).toBeGreaterThan(4);
+    expect(closestCenters).toBeGreaterThan(24);
   });
 
   it("uses core colors for common languages and gray for uncommon ones", () => {

@@ -119,22 +119,6 @@ function createLayout(repositories: RepositorySignal[]) {
     const sizeDelta = (groups.get(b)?.length ?? 0) - (groups.get(a)?.length ?? 0);
     return sizeDelta || a.localeCompare(b);
   });
-  const languageAnchors = new Map<string, number>();
-  let languageOffset = 0;
-  languages.forEach((language) => {
-    const share = (groups.get(language)?.length ?? 0) / repositories.length;
-    languageAnchors.set(
-      language,
-      -Math.PI / 2 + (languageOffset + share / 2) * Math.PI * 2,
-    );
-    languageOffset += share;
-  });
-
-  const orderedRepositories = [...repositories].sort(
-    (a, b) =>
-      activityScore(b) - activityScore(a) ||
-      a.fullName.localeCompare(b.fullName),
-  );
   const buildingSpacing = 3.55;
   const boulevardEvery = 6;
   const boulevardWidth = 1.15;
@@ -143,98 +127,142 @@ function createLayout(repositories: RepositorySignal[]) {
     { position: [number, number, number]; rotation: number }
   >();
 
-  // Filling the nearest square-grid cells first produces a dense "digital
-  // circle": a recognizable conglomerate with blocky streets and an irregular
-  // stepped perimeter instead of a rectangular row-major footprint.
-  const searchRadius = Math.ceil(Math.sqrt(repositories.length)) + 2;
-  const cells = Array.from(
-    { length: searchRadius * 2 + 1 },
-    (_, xIndex) => xIndex - searchRadius,
-  )
-    .flatMap((x) =>
-      Array.from(
-        { length: searchRadius * 2 + 1 },
-        (_, zIndex) => zIndex - searchRadius,
-      ).map((z) => ({
-        x,
-        z,
-        radius: Math.hypot(x, z),
-        angle: Math.atan2(z, x),
-      })),
-    )
-    .sort(
-      (a, b) =>
-        a.radius - b.radius ||
-        a.angle - b.angle ||
-        a.x - b.x ||
-        a.z - b.z,
-    )
-    .slice(0, repositories.length)
-    .map((cell, radialRank) => ({ ...cell, radialRank }));
-  const outerRadius = Math.max(1, ...cells.map((cell) => cell.radius));
-  const availableCells = [...cells];
-  const activityScatter = Math.min(
-    12,
-    Math.max(2, Math.sqrt(repositories.length) * 0.45),
-  );
-  const angularDistance = (first: number, second: number) => {
-    const difference = Math.abs(first - second) % (Math.PI * 2);
-    return Math.min(difference, Math.PI * 2 - difference);
+  type LayoutCell = {
+    x: number;
+    z: number;
+    radius: number;
+    angle: number;
   };
+  const createDistrictCells = (count: number): LayoutCell[] => {
+    const searchRadius = Math.ceil(Math.sqrt(count)) + 2;
+    const candidates: LayoutCell[] = [];
+    for (let x = -searchRadius; x <= searchRadius; x += 1) {
+      for (let z = -searchRadius; z <= searchRadius; z += 1) {
+        candidates.push({
+          x,
+          z,
+          radius: Math.hypot(x, z),
+          angle: Math.atan2(z, x),
+        });
+      }
+    }
+    return candidates
+      .sort(
+        (a, b) =>
+          a.radius - b.radius ||
+          a.angle - b.angle ||
+          a.x - b.x ||
+          a.z - b.z,
+      )
+      .slice(0, count);
+  };
+
+  const districts = languages.map((language) => {
+    const cells = createDistrictCells(groups.get(language)?.length ?? 0);
+    return {
+      language,
+      repositories: [...(groups.get(language) ?? [])],
+      cells,
+      radius: Math.max(0, ...cells.map((cell) => cell.radius)) + 0.62,
+      center: { x: 0, z: 0 },
+    };
+  });
+
+  // Pack the color districts as separate digital circles. The largest language
+  // anchors the city and smaller conglomerates take the nearest non-overlapping
+  // grid position, keeping the overall footprint compact without comparing
+  // every repository against every other open block.
+  const placedDistricts: typeof districts = [];
+  const districtGap = 1.35;
+  districts.forEach((district, districtIndex) => {
+    if (districtIndex > 0) {
+      const startAngle =
+        ((hashString(district.language) % 360) / 360) * Math.PI * 2;
+      let foundCenter = false;
+      const maxRing = Math.max(
+        8,
+        Math.ceil(
+          placedDistricts.reduce(
+            (total, placed) => total + placed.radius + districtGap,
+            district.radius,
+          ),
+        ),
+      );
+
+      for (let ring = 1; ring <= maxRing && !foundCenter; ring += 1) {
+        const samples = Math.max(8, Math.ceil(Math.PI * 2 * ring * 1.5));
+        const seen = new Set<string>();
+        for (let sample = 0; sample < samples; sample += 1) {
+          const angle = startAngle + (sample / samples) * Math.PI * 2;
+          const candidate = {
+            x: Math.round(Math.cos(angle) * ring),
+            z: Math.round(Math.sin(angle) * ring),
+          };
+          const candidateKey = `${candidate.x}:${candidate.z}`;
+          if (seen.has(candidateKey)) continue;
+          seen.add(candidateKey);
+
+          const hasRoom = placedDistricts.every(
+            (placed) =>
+              Math.hypot(
+                candidate.x - placed.center.x,
+                candidate.z - placed.center.z,
+              ) >=
+              district.radius + placed.radius + districtGap,
+          );
+          if (hasRoom) {
+            district.center = candidate;
+            foundCenter = true;
+            break;
+          }
+        }
+      }
+    }
+    placedDistricts.push(district);
+  });
+
   const streetCoordinate = (coordinate: number) =>
     coordinate * buildingSpacing +
     Math.sign(coordinate) *
       Math.floor(Math.abs(coordinate) / boulevardEvery) *
       boulevardWidth;
 
-  orderedRepositories.forEach((repo, activityRank) => {
-    const seed = hashString(repo.fullName);
-    const rankNoise = ((seed >>> 16) & 255) / 255;
-    const tallBand = Math.max(3, Math.ceil(repositories.length * 0.15));
-    const scatter =
-      activityRank < tallBand
-        ? rankNoise * activityScatter
-        : (rankNoise - 0.5) * activityScatter * 2;
-    const targetRank = clamp(
-      activityRank + scatter,
-      0,
-      repositories.length - 1,
+  placedDistricts.forEach((district) => {
+    const scatterRange = Math.min(
+      8,
+      Math.max(1.5, Math.sqrt(district.repositories.length) * 0.42),
     );
-    const districtAngle =
-      languageAnchors.get(repo.language || "Other") ?? -Math.PI / 2;
-    let bestCellIndex = 0;
-    let bestCost = Infinity;
+    const orderedRepositories = district.repositories
+      .sort(
+        (a, b) =>
+          activityScore(b) - activityScore(a) ||
+          a.fullName.localeCompare(b.fullName),
+      )
+      .map((repo, activityRank) => ({
+        repo,
+        placementRank:
+          activityRank +
+          (((hashString(repo.fullName) >>> 16) & 255) / 255) * scatterRange,
+      }))
+      .sort(
+        (a, b) =>
+          a.placementRank - b.placementRank ||
+          a.repo.fullName.localeCompare(b.repo.fullName),
+      );
 
-    availableCells.forEach((cell, cellIndex) => {
-      const radialCost =
-        (Math.abs(cell.radialRank - targetRank) /
-          Math.max(1, repositories.length - 1)) *
-        5;
-      // Angle matters progressively more away from the core, producing broad,
-      // readable language neighborhoods without turning them into rigid slices.
-      const districtCost =
-        (angularDistance(cell.angle, districtAngle) / Math.PI) *
-        1.35 *
-        Math.sqrt(cell.radius / outerRadius);
-      const tieBreak =
-        (hashString(`${repo.fullName}:${cell.x}:${cell.z}`) % 997) / 997_000;
-      const cost = radialCost + districtCost + tieBreak;
-      if (cost < bestCost) {
-        bestCost = cost;
-        bestCellIndex = cellIndex;
-      }
-    });
-
-    const [cell] = availableCells.splice(bestCellIndex, 1);
-    const jitterX = ((seed & 255) / 255 - 0.5) * 0.3;
-    const jitterZ = (((seed >> 8) & 255) / 255 - 0.5) * 0.3;
-    placements.set(repo.id, {
-      position: [
-        streetCoordinate(cell.x) + jitterX,
-        0,
-        streetCoordinate(cell.z) + jitterZ,
-      ],
-      rotation: ((seed % 5) - 2) * 0.014,
+    orderedRepositories.forEach(({ repo }, cellIndex) => {
+      const cell = district.cells[cellIndex];
+      const seed = hashString(repo.fullName);
+      const jitterX = ((seed & 255) / 255 - 0.5) * 0.3;
+      const jitterZ = (((seed >> 8) & 255) / 255 - 0.5) * 0.3;
+      placements.set(repo.id, {
+        position: [
+          streetCoordinate(district.center.x + cell.x) + jitterX,
+          0,
+          streetCoordinate(district.center.z + cell.z) + jitterZ,
+        ],
+        rotation: ((seed % 5) - 2) * 0.014,
+      });
     });
   });
 
