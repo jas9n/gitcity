@@ -183,8 +183,8 @@ function BuildingSurfaceBatch({
       camera.position.z - batchCenter.z,
     );
     const distantLift = Math.min(
-      0.1,
-      Math.max(0, (cameraDistance - 65) / 450),
+      0.09,
+      Math.max(0, (cameraDistance - 65) / 500),
     );
     surfaceMaterial.current?.color
       .copy(displayColor)
