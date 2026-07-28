@@ -61,6 +61,8 @@ type WindowSlot = {
 };
 
 const WINDOW_FACADE_OFFSET = 0.04;
+const BEACON_HEIGHT = 1.05;
+const BEACON_ROOF_GAP = 0.05;
 
 const WINDOW_STYLES: Record<
   WindowTone,
@@ -280,7 +282,7 @@ function RooftopBeaconBatch({
       const scale = 0.72 + building.recentActivity * 0.55;
       dummy.position.set(
         building.position[0],
-        building.height + 0.2,
+        building.height + BEACON_ROOF_GAP + (BEACON_HEIGHT * scale) / 2,
         building.position[2],
       );
       dummy.rotation.set(0, building.rotation, 0);
@@ -305,7 +307,7 @@ function RooftopBeaconBatch({
       args={[undefined, undefined, buildings.length]}
       raycast={() => null}
     >
-      <cylinderGeometry args={[0.055, 0.1, 0.3, 8]} />
+      <cylinderGeometry args={[0.055, 0.1, BEACON_HEIGHT, 8]} />
       <meshBasicMaterial
         ref={beaconMaterial}
         color={color}
