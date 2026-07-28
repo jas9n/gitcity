@@ -17,6 +17,8 @@ const PAGE_SIZE = 100;
 const EXPLORE_CACHE_TTL = 24 * 60 * 60 * 1000;
 const GITHUB_TIMEOUT_MS = 12_000;
 const GITHUB_FETCH_ATTEMPTS = 3;
+const GITHUB_TOKEN_PATTERN =
+  /^(?:github_pat_|gh[pousr]_)[a-z\d_]+$/i;
 
 type OwnerType = "organization" | "user";
 
@@ -60,9 +62,10 @@ type GitHubPagePayload = {
 };
 
 function githubToken() {
-  return process.env.GITHUB_TOKEN
+  const token = process.env.GITHUB_TOKEN
     ?.trim()
     .replace(/^Bearer\s+/i, "");
+  return token && GITHUB_TOKEN_PATTERN.test(token) ? token : undefined;
 }
 
 function githubHeaders(authenticated = true) {
@@ -431,7 +434,7 @@ export async function GET(request: NextRequest) {
     console.error("Git/City GitHub route failed", {
       owner,
       page,
-      message: error instanceof Error ? error.message : String(error),
+      errorType: error instanceof Error ? error.name : "UnknownError",
     });
     return NextResponse.json(
       {
