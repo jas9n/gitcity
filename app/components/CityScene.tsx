@@ -143,7 +143,24 @@ function BuildingSurfaceBatch({
 }) {
   const surfaces = useRef<InstancedMesh>(null);
   const roofs = useRef<InstancedMesh>(null);
+  const surfaceMaterial = useRef<MeshBasicMaterial>(null);
+  const roofMaterial = useRef<MeshBasicMaterial>(null);
   const dummy = useMemo(() => new Object3D(), []);
+  const batchCenter = useMemo(
+    () => ({
+      x:
+        buildings.reduce(
+          (total, building) => total + building.position[0],
+          0,
+        ) / Math.max(1, buildings.length),
+      z:
+        buildings.reduce(
+          (total, building) => total + building.position[2],
+          0,
+        ) / Math.max(1, buildings.length),
+    }),
+    [buildings],
+  );
   const displayColor = useMemo(
     () => {
       const languageColor = new Color(color);
@@ -157,6 +174,25 @@ function BuildingSurfaceBatch({
     },
     [color, tone],
   );
+  const distantTint = useMemo(() => new Color("#d5e9f4"), []);
+
+  useFrame(({ camera }) => {
+    const cameraDistance = Math.hypot(
+      camera.position.x - batchCenter.x,
+      camera.position.y,
+      camera.position.z - batchCenter.z,
+    );
+    const distantLift = Math.min(
+      0.1,
+      Math.max(0, (cameraDistance - 65) / 450),
+    );
+    surfaceMaterial.current?.color
+      .copy(displayColor)
+      .lerp(distantTint, distantLift);
+    roofMaterial.current?.color
+      .copy(displayColor)
+      .lerp(distantTint, distantLift);
+  });
 
   useLayoutEffect(() => {
     if (!surfaces.current || !roofs.current) return;
@@ -204,6 +240,7 @@ function BuildingSurfaceBatch({
       >
         <boxGeometry args={[1, 1, 1]} />
         <meshBasicMaterial
+          ref={surfaceMaterial}
           color={displayColor}
           toneMapped={false}
         />
@@ -214,7 +251,11 @@ function BuildingSurfaceBatch({
         raycast={() => null}
       >
         <boxGeometry args={[1, 1, 1]} />
-        <meshBasicMaterial color={displayColor} toneMapped={false} />
+        <meshBasicMaterial
+          ref={roofMaterial}
+          color={displayColor}
+          toneMapped={false}
+        />
       </instancedMesh>
     </>
   );
