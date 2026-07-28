@@ -31,3 +31,25 @@ npm test
 
 An optional `GITHUB_TOKEN` environment variable increases GitHub API capacity
 without ever exposing the token to the browser.
+
+Copy `.env.example` to `.env.local` to configure local credentials. The app
+continues to run without Redis, but durable Explore caching is enabled when the
+Upstash REST credentials are present.
+
+## Deploy to Vercel
+
+1. Push this repository to GitHub, GitLab, or Bitbucket.
+2. Import the repository in Vercel. The project is a standard Next.js app, so
+   the framework and build settings are detected automatically.
+3. Add an Upstash Redis integration from the Vercel Marketplace and connect it
+   to the project. Confirm that `UPSTASH_REDIS_REST_URL` and
+   `UPSTASH_REDIS_REST_TOKEN` are available in Production and Preview.
+4. Add `GITHUB_TOKEN` to Production and Preview for higher GitHub API limits.
+5. Deploy. Vercel uses `npm run build` and the Node.js requirement from
+   `package.json`.
+
+Run the same production checks locally before deploying:
+
+```bash
+npm test
+```

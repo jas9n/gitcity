@@ -6,6 +6,9 @@ import {
   writeGithubCache,
 } from "@/lib/github-cache";
 
+export const runtime = "nodejs";
+export const maxDuration = 60;
+
 const GITHUB_API = "https://api.github.com";
 const OWNER_PATTERN = /^[a-z\d](?:[a-z\d-]{0,37}[a-z\d])?$/i;
 const REPOSITORY_PATTERN =

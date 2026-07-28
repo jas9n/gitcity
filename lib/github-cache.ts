@@ -1,28 +1,23 @@
-type CacheRow = {
-  payload: string;
-};
+import { Redis } from "@upstash/redis";
 
-async function getCacheDatabase() {
-  try {
-    const { env } = await import("cloudflare:workers");
-    return (env as unknown as { DB?: D1Database }).DB;
-  } catch {
-    return undefined;
-  }
+let redisClient: Redis | null | undefined;
+
+function getRedisClient() {
+  if (redisClient !== undefined) return redisClient;
+
+  const url = process.env.UPSTASH_REDIS_REST_URL;
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+  redisClient = url && token ? new Redis({ url, token }) : null;
+
+  return redisClient;
 }
 
 export async function readGithubCache<T>(key: string): Promise<T | null> {
-  const database = await getCacheDatabase();
-  if (!database) return null;
+  const redis = getRedisClient();
+  if (!redis) return null;
 
   try {
-    const row = await database
-      .prepare(
-        "SELECT payload FROM github_cache WHERE key = ?1 AND expires_at > ?2",
-      )
-      .bind(key, Date.now())
-      .first<CacheRow>();
-    return row ? (JSON.parse(row.payload) as T) : null;
+    return await redis.get<T>(key);
   } catch {
     return null;
   }
@@ -34,25 +29,15 @@ export async function writeGithubCache(
   payload: unknown,
   ttlMs: number,
 ) {
-  const database = await getCacheDatabase();
-  if (!database) return;
+  const redis = getRedisClient();
+  if (!redis) return;
 
-  const now = Date.now();
   try {
-    await database
-      .prepare(
-        `INSERT INTO github_cache (key, owner, payload, expires_at, updated_at)
-         VALUES (?1, ?2, ?3, ?4, ?5)
-         ON CONFLICT(key) DO UPDATE SET
-           owner = excluded.owner,
-           payload = excluded.payload,
-           expires_at = excluded.expires_at,
-           updated_at = excluded.updated_at`,
-      )
-      .bind(key, owner, JSON.stringify(payload), now + ttlMs, now)
-      .run();
+    await redis.set(key, payload, { px: ttlMs });
   } catch {
-    // The city remains available through GitHub and edge caching if D1 is
-    // temporarily unavailable or a migration has not reached a preview yet.
+    // The city remains available through GitHub and Vercel's data cache if
+    // Redis is temporarily unavailable or has not been configured locally.
   }
+
+  void owner;
 }
