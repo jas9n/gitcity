@@ -42,8 +42,10 @@ Upstash REST credentials are present.
 2. Import the repository in Vercel. The project is a standard Next.js app, so
    the framework and build settings are detected automatically.
 3. Add an Upstash Redis integration from the Vercel Marketplace and connect it
-   to the project. Confirm that `UPSTASH_REDIS_REST_URL` and
-   `UPSTASH_REDIS_REST_TOKEN` are available in Production and Preview.
+   to the project. The cache accepts either Upstash's standard
+   `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` variables or
+   Vercel's prefixed `CACHE_KV_REST_API_URL` and
+   `CACHE_KV_REST_API_TOKEN` variables.
 4. Add `GITHUB_TOKEN` to Production and Preview for higher GitHub API limits.
 5. Deploy. Vercel uses `npm run build` and the Node.js requirement from
    `package.json`.
