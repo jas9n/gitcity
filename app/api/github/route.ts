@@ -15,6 +15,8 @@ const REPOSITORY_PATTERN =
   /^[a-z\d](?:[a-z\d-]{0,37}[a-z\d])?\/[a-z\d._-]{1,100}$/i;
 const PAGE_SIZE = 100;
 const EXPLORE_CACHE_TTL = 24 * 60 * 60 * 1000;
+const GITHUB_TIMEOUT_MS = 12_000;
+const GITHUB_FETCH_ATTEMPTS = 2;
 
 type OwnerType = "organization" | "user";
 
@@ -70,10 +72,26 @@ function githubHeaders() {
 }
 
 async function fetchGitHub(path: string) {
-  return fetch(`${GITHUB_API}${path}`, {
-    headers: githubHeaders(),
-    next: { revalidate: 900 },
-  });
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt < GITHUB_FETCH_ATTEMPTS; attempt += 1) {
+    try {
+      const response = await fetch(`${GITHUB_API}${path}`, {
+        headers: githubHeaders(),
+        next: { revalidate: 900 },
+        signal: AbortSignal.timeout(GITHUB_TIMEOUT_MS),
+      });
+
+      if (response.status < 500 || attempt === GITHUB_FETCH_ATTEMPTS - 1) {
+        return response;
+      }
+    } catch (error) {
+      lastError = error;
+      if (attempt === GITHUB_FETCH_ATTEMPTS - 1) throw error;
+    }
+  }
+
+  throw lastError ?? new Error("GitHub request failed without a response.");
 }
 
 function countFromPaginatedResponse(response: Response, itemCount: number) {
@@ -396,7 +414,12 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(payload, {
       headers: cacheHeaders(exploreTarget),
     });
-  } catch {
+  } catch (error) {
+    console.error("Git/City GitHub route failed", {
+      owner,
+      page,
+      message: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json(
       {
         error:

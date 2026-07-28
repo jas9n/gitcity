@@ -11,7 +11,16 @@ function getRedisClient() {
   const token =
     process.env.UPSTASH_REDIS_REST_TOKEN ??
     process.env.CACHE_KV_REST_API_TOKEN;
-  redisClient = url && token ? new Redis({ url, token }) : null;
+  if (!url || !token) {
+    redisClient = null;
+    return redisClient;
+  }
+
+  try {
+    redisClient = new Redis({ url, token });
+  } catch {
+    redisClient = null;
+  }
 
   return redisClient;
 }

@@ -817,7 +817,7 @@ export function CityScene(props: CitySceneProps) {
       dpr={[1, 1.7]}
       camera={{ position: [31, 29, 38], fov: 45, near: 0.1, far: 2000 }}
       gl={{ antialias: true, powerPreference: "high-performance" }}
-      shadows
+      shadows="percentage"
       onCreated={({ scene }) => {
         scene.fog = new FogExp2(new Color("#02060c"), 0.027);
       }}
