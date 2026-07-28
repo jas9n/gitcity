@@ -61,7 +61,7 @@ type WindowSlot = {
 };
 
 const WINDOW_FACADE_OFFSET = 0.04;
-const BEACON_HEIGHT = 1.05;
+const BEACON_HEIGHT = 1.2;
 const BEACON_ROOF_GAP = 0.05;
 
 const WINDOW_STYLES: Record<
@@ -712,16 +712,16 @@ function Scene({
         attach="fog"
         args={["#02060c", Math.max(0.006, 0.027 * (44 / bounds.radius))]}
       />
-      <ambientLight intensity={0.72} color="#83b5d8" />
-      <hemisphereLight args={["#75baff", "#06101a", 1.05]} />
+      <ambientLight intensity={0.792} color="#83b5d8" />
+      <hemisphereLight args={["#75baff", "#06101a", 1.155]} />
       <directionalLight
         position={[15, Math.max(24, bounds.height * 1.05), 12]}
-        intensity={1.4}
+        intensity={1.54}
         color="#b9d8ff"
         castShadow={buildings.length <= 450}
       />
-      <pointLight position={[-18, 8, 6]} intensity={38} distance={36} color="#2adfff" />
-      <pointLight position={[16, 5, -12]} intensity={30} distance={32} color="#e24cff" />
+      <pointLight position={[-18, 8, 6]} intensity={41.8} distance={36} color="#2adfff" />
+      <pointLight position={[16, 5, -12]} intensity={33} distance={32} color="#e24cff" />
 
       <Stars
         radius={Math.max(90, bounds.radius * 1.8)}
@@ -799,7 +799,7 @@ function Scene({
         autoRotate={!reduceMotion && selectedId === null}
         autoRotateSpeed={0.24}
       />
-      <Environment preset="city" environmentIntensity={0.22} />
+      <Environment preset="city" environmentIntensity={0.242} />
       <EffectComposer multisampling={0}>
         <Bloom
           intensity={1.05}
