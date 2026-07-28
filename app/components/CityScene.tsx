@@ -84,17 +84,20 @@ const CONSTRUCTION_SHADER_KEY = "git-city-construction-v1";
 const CONSTRUCTION_START_ATTRIBUTE = "instanceConstructionStart";
 const CONSTRUCTION_DURATION_ATTRIBUTE = "instanceConstructionDuration";
 
-function setConstructionAttributes(
+function setConstructionAttributes<T>(
   mesh: InstancedMesh,
-  buildings: CityBuilding[],
+  items: T[],
   construction: ConstructionController,
   phase: "building" | "beacon" = "building",
+  buildingFor: (item: T) => CityBuilding = (item) =>
+    item as CityBuilding,
 ) {
   if (!construction.enabled) return;
 
-  const starts = new Float32Array(buildings.length);
-  const durations = new Float32Array(buildings.length);
-  buildings.forEach((building, index) => {
+  const starts = new Float32Array(items.length);
+  const durations = new Float32Array(items.length);
+  items.forEach((item, index) => {
+    const building = buildingFor(item);
     const timing = construction.timingFor(building);
     starts[index] =
       phase === "beacon"
@@ -487,21 +490,18 @@ function RooftopBeacons({
 }
 
 function WindowPaneBatch({
-  slots,
+  batches,
   tone,
   construction,
 }: {
-  slots: WindowSlot[];
+  batches: Map<WindowTone, WindowSlot[]>;
   tone: WindowTone;
   construction: ConstructionController;
 }) {
+  const slots = batches.get(tone)!;
   const windows = useRef<InstancedMesh>(null);
   const dummy = useMemo(() => new Object3D(), []);
   const style = WINDOW_STYLES[tone];
-  const slotBuildings = useMemo(
-    () => slots.map(({ building }) => building),
-    [slots],
-  );
   const constructionMaterial = useConstructionMaterial(construction);
 
   useLayoutEffect(() => {
@@ -557,11 +557,13 @@ function WindowPaneBatch({
     windows.current.instanceMatrix.needsUpdate = true;
     setConstructionAttributes(
       windows.current,
-      slotBuildings,
+      slots,
       construction,
+      "building",
+      (slot) => slot.building,
     );
     windows.current.computeBoundingSphere();
-  }, [construction, dummy, slotBuildings, slots]);
+  }, [construction, dummy, slots]);
 
   return (
     <instancedMesh
@@ -608,33 +610,44 @@ function BuildingInstances({
   );
   const constructionEnabled =
     CONSTRUCTION_ANIMATION_ENABLED && !reduceMotion;
-  const timingFor = useCallback((building: CityBuilding) => {
-    const existing = constructionTimings.current.get(building.id);
-    if (existing) return existing;
+  const constructionStagger = useMemo(
+    () =>
+      Math.min(
+        3,
+        0.3 + Math.log2(1 + Math.max(1, buildings.length) / 50) * 0.45,
+      ),
+    [buildings.length],
+  );
+  const timingFor = useCallback(
+    (building: CityBuilding) => {
+      const existing = constructionTimings.current.get(building.id);
+      if (existing) return existing;
 
-    const jitter =
-      ((hashString(`${building.fullName}:construction`) >>> 0) % 1000) /
-      1000;
-    const durationJitter =
-      ((hashString(`${building.fullName}:construction-duration`) >>> 0) %
-        1000) /
-      1000;
-    const neighborhoodWave =
-      (Math.sin(building.position[0] * 0.15) +
-        Math.cos(building.position[2] * 0.13) +
-        2) /
-      4;
-    const heightFactor = Math.min(1, building.height / 30);
-    const timing = {
-      start:
-        currentConstructionTime.current +
-        neighborhoodWave * 0.3 +
-        jitter * 0.2,
-      duration: 0.78 + heightFactor * 0.58 + durationJitter * 0.12,
-    };
-    constructionTimings.current.set(building.id, timing);
-    return timing;
-  }, []);
+      const jitter =
+        ((hashString(`${building.fullName}:construction`) >>> 0) % 1000) /
+        1000;
+      const durationJitter =
+        ((hashString(`${building.fullName}:construction-duration`) >>> 0) %
+          1000) /
+        1000;
+      const neighborhoodWave =
+        (Math.sin(building.position[0] * 0.15) +
+          Math.cos(building.position[2] * 0.13) +
+          2) /
+        4;
+      const heightFactor = Math.min(1, building.height / 30);
+      const timing = {
+        start:
+          currentConstructionTime.current +
+          constructionStagger *
+            (neighborhoodWave * 0.72 + jitter * 0.28),
+        duration: 0.78 + heightFactor * 0.58 + durationJitter * 0.12,
+      };
+      constructionTimings.current.set(building.id, timing);
+      return timing;
+    },
+    [constructionStagger],
+  );
   const construction = useMemo<ConstructionController>(
     () => ({
       enabled: constructionEnabled,
@@ -695,7 +708,10 @@ function BuildingInstances({
       }
     });
 
-    return [...batches.entries()].filter(([, slots]) => slots.length > 0);
+    batches.forEach((slots, tone) => {
+      if (slots.length === 0) batches.delete(tone);
+    });
+    return batches;
   }, [buildings]);
   const hoveredId =
     hoveredInstance === null ? null : buildings[hoveredInstance]?.id ?? null;
@@ -837,10 +853,10 @@ function BuildingInstances({
         construction={construction}
       />
 
-      {windowBatches.map(([tone, slots]) => (
+      {[...windowBatches.keys()].map((tone) => (
         <WindowPaneBatch
           key={tone}
-          slots={slots}
+          batches={windowBatches}
           tone={tone}
           construction={construction}
         />

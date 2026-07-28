@@ -6,7 +6,9 @@ import {
   ArrowUpRight,
   Box,
   Building2,
+  Check,
   ChevronDown,
+  Code2,
   Compass,
   GitFork,
   GitCommitHorizontal,
@@ -106,7 +108,9 @@ export function GitCityExperience() {
   const [error, setError] = useState("");
   const [reduceMotion, setReduceMotion] = useState(false);
   const [discoveryOpen, setDiscoveryOpen] = useState(false);
+  const [languageOpen, setLanguageOpen] = useState(false);
   const searchHubRef = useRef<HTMLDivElement>(null);
+  const languageMenuRef = useRef<HTMLDivElement>(null);
   const loadGenerationRef = useRef(0);
   const loadAbortRef = useRef<AbortController | null>(null);
 
@@ -123,6 +127,7 @@ export function GitCityExperience() {
       if (event.key === "Escape") {
         setSelectedId(null);
         setDiscoveryOpen(false);
+        setLanguageOpen(false);
       }
     };
     window.addEventListener("keydown", handleKey);
@@ -139,6 +144,17 @@ export function GitCityExperience() {
     window.addEventListener("pointerdown", closeOutside);
     return () => window.removeEventListener("pointerdown", closeOutside);
   }, [discoveryOpen]);
+
+  useEffect(() => {
+    if (!languageOpen) return;
+    const closeOutside = (event: PointerEvent) => {
+      if (!languageMenuRef.current?.contains(event.target as Node)) {
+        setLanguageOpen(false);
+      }
+    };
+    window.addEventListener("pointerdown", closeOutside);
+    return () => window.removeEventListener("pointerdown", closeOutside);
+  }, [languageOpen]);
 
   const allBuildings = useMemo(() => buildCity(repositories), [repositories]);
   const languages = useMemo(
@@ -190,6 +206,7 @@ export function GitCityExperience() {
     setSelectedId(null);
     setHoveredId(null);
     setDiscoveryOpen(false);
+    setLanguageOpen(false);
 
     try {
       const query = new URLSearchParams({ owner: target.owner, page: "1" });
@@ -311,6 +328,7 @@ export function GitCityExperience() {
     setSelectedId(null);
     setHoveredId(null);
     setDiscoveryOpen(false);
+    setLanguageOpen(false);
     setError("");
     if (historyMode === "push") {
       window.history.pushState(null, "", window.location.pathname);
@@ -566,18 +584,56 @@ export function GitCityExperience() {
           )}
         </div>
         <span className="dock-divider" />
-        <label>
-          <span className="sr-only">Filter by programming language</span>
-          <select
-            value={language}
-            onChange={(event) => setLanguage(event.target.value)}
+        <div className="language-menu" ref={languageMenuRef}>
+          <button
+            className="language-trigger"
+            type="button"
+            aria-haspopup="menu"
+            aria-expanded={languageOpen}
+            aria-controls="language-panel"
+            onClick={() => setLanguageOpen((open) => !open)}
           >
-            <option>All languages</option>
-            {languages.map((item) => (
-              <option key={item}>{item}</option>
-            ))}
-          </select>
-        </label>
+            <Code2 size={13} aria-hidden="true" />
+            <span>{language}</span>
+            <ChevronDown
+              className={languageOpen ? "open" : ""}
+              size={12}
+              aria-hidden="true"
+            />
+          </button>
+
+          {languageOpen && (
+            <div
+              className="language-panel"
+              id="language-panel"
+              role="menu"
+              aria-label="Filter by programming language"
+            >
+              <span className="language-panel-label">LANGUAGE DISTRICTS</span>
+              {["All languages", ...languages].map((item) => (
+                <button
+                  key={item}
+                  type="button"
+                  role="menuitemradio"
+                  aria-checked={language === item}
+                  className={language === item ? "active" : ""}
+                  onClick={() => {
+                    setLanguage(item);
+                    setLanguageOpen(false);
+                  }}
+                >
+                  <span className="language-monogram">
+                    {item === "All languages"
+                      ? "ALL"
+                      : item.slice(0, 2).toUpperCase()}
+                  </span>
+                  <span>{item}</span>
+                  <Check size={12} aria-hidden="true" />
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
         <span className={`result-count ${isStreaming ? "streaming" : ""}`}>
           {isStreaming
             ? `${repositories.length.toLocaleString()} loaded`
